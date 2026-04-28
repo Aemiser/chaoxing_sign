@@ -1,17 +1,23 @@
 #!/usr/bin/env python3
-"""超星学习通签到 - FastAPI Web 服务"""
+"""超星学习通签到 - FastAPI Web 服务（好友系统 + 代签功能）"""
 from __future__ import annotations
 import uuid
 import json
+import re
 import logging
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from sqlalchemy.orm import Session
+from pydantic import BaseModel
 
 from chaoxing_sign import ChaoxingClient, SignType
 from chaoxing_sign.types import Course, SignTask
+from chaoxing_sign import database as db_module
+from chaoxing_sign.models import Base, User, Friendship, ProxyRecord, UserSession
+from chaoxing_sign.auth import create_jwt, get_current_user_id
 
 log = logging.getLogger("server")
 logging.basicConfig(level=logging.INFO)
@@ -25,9 +31,13 @@ app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 # Session 池: token → ChaoxingClient
 sessions: dict[str, ChaoxingClient] = {}
 
-# 加载默认位置配置
+# DB 是否可用
+db_available = False
+
+# 加载配置
 config_path = Path(__file__).parent / "config.json"
 default_location = {"longitude": "116.404", "latitude": "39.915", "name": "北京市"}
+cfg: dict = {}
 if config_path.exists():
     try:
         cfg = json.loads(config_path.read_text(encoding="utf-8"))
@@ -36,20 +46,118 @@ if config_path.exists():
         pass
 
 
+# ================================================================
+# 启动事件
+# ================================================================
+
+@app.on_event("startup")
+async def startup():
+    global db_available
+    try:
+        db_module.init_db(cfg)
+        Base.metadata.create_all(bind=db_module.engine)
+        test_db = db_module.SessionLocal()
+        test_db.close()
+        db_available = True
+        log.info("数据库连接成功，好友/代签功能已启用")
+    except Exception as e:
+        db_available = False
+        log.warning("数据库不可用，好友/代签功能已禁用: %s", e)
+
+
+# ================================================================
+# 请求体模型
+# ================================================================
+
+class AddFriendRequest(BaseModel):
+    target_account: str
+
+
+class QrcodeSignRequest(BaseModel):
+    qr_data: str
+    active_id: str = ""
+    course_id: str = ""
+    class_id: str = ""
+    proxy_friend_ids: list[int] = []
+
+
+# ================================================================
+# 辅助函数
+# ================================================================
+
 def get_client(token: str) -> ChaoxingClient:
     if token not in sessions:
         raise HTTPException(401, "未登录或 session 已过期")
     return sessions[token]
 
 
+def get_or_create_user(db: Session, supernova_account: str, nickname: str = "") -> User:
+    user = db.query(User).filter(User.supernova_account == supernova_account).first()
+    if user is None:
+        user = User(supernova_account=supernova_account, nickname=nickname or supernova_account)
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    elif nickname and user.nickname == user.supernova_account:
+        user.nickname = nickname
+        db.commit()
+    return user
+
+
+def require_db():
+    if not db_available:
+        raise HTTPException(503, "数据库服务不可用，请稍后重试")
+
+
+def save_user_session(db: Session, user_id: int, client: ChaoxingClient):
+    """把超星会话 cookies 持久化到数据库"""
+    cookies = client.session.cookies.get_dict()
+    data = json.dumps(cookies, ensure_ascii=False)
+    existing = db.query(UserSession).filter(UserSession.user_id == user_id).first()
+    if existing:
+        existing.cookies_json = data
+        existing.uid = client.uid
+        existing.name = client.name
+    else:
+        db.add(UserSession(
+            user_id=user_id,
+            cookies_json=data,
+            uid=client.uid,
+            name=client.name or "",
+        ))
+    db.commit()
+
+
+def get_proxy_client(db: Session, user_id: int) -> ChaoxingClient | None:
+    """从数据库加载用户的超星会话，返回可用客户端"""
+    session_row = db.query(UserSession).filter(UserSession.user_id == user_id).first()
+    if not session_row or not session_row.cookies_json:
+        return None
+    client = ChaoxingClient()
+    try:
+        cookies = json.loads(session_row.cookies_json)
+        for key, value in cookies.items():
+            client.session.cookies.set(key, value)
+        client._uid = session_row.uid
+        client._name = session_row.name
+        client._logged_in = True
+        return client
+    except Exception:
+        return None
+
+
 # ================================================================
-# API Endpoints
+# 页面
 # ================================================================
 
 @app.get("/")
 async def root():
     return FileResponse(static_dir / "index.html")
 
+
+# ================================================================
+# 超星登录（修改后：自动注册用户 + 返回 JWT）
+# ================================================================
 
 @app.post("/api/login")
 async def api_login(phone: str = Query(...), password: str = Query(...)):
@@ -59,12 +167,32 @@ async def api_login(phone: str = Query(...), password: str = Query(...)):
 
     token = uuid.uuid4().hex
     sessions[token] = client
-    return {
+
+    result: dict = {
         "ok": True,
         "token": token,
         "uid": client.uid,
         "name": client.name or phone,
     }
+
+    if db_available:
+        try:
+            db = db_module.SessionLocal()
+            user = get_or_create_user(db, client.uid, client.name or "")
+            # 持久化超星会话到数据库
+            save_user_session(db, user.id, client)
+            jwt_token = create_jwt(user.id)
+            result["jwt"] = jwt_token
+            result["user"] = {
+                "id": user.id,
+                "supernova_account": user.supernova_account,
+                "nickname": user.nickname,
+            }
+            db.close()
+        except Exception as e:
+            log.error("自动注册用户失败: %s", e)
+
+    return result
 
 
 @app.post("/api/logout")
@@ -72,6 +200,120 @@ async def api_logout(token: str = Query(...)):
     sessions.pop(token, None)
     return {"ok": True}
 
+
+@app.get("/api/session")
+async def api_session(token: str = Query(...)):
+    c = get_client(token)
+    return {"ok": True, "uid": c.uid, "name": c.name}
+
+
+# ================================================================
+# 好友模块
+# ================================================================
+
+@app.get("/api/friends")
+async def api_friends(
+    token: str = Query(...),
+    user_id: int = Depends(get_current_user_id),
+):
+    """获取好友列表"""
+    require_db()
+    get_client(token)
+    db: Session = next(db_module.get_db())
+    try:
+        friendships = (
+            db.query(Friendship, User)
+            .join(User, Friendship.friend_id == User.id)
+            .filter(Friendship.user_id == user_id)
+            .all()
+        )
+        friends = [
+            {
+                "id": u.id,
+                "supernova_account": u.supernova_account,
+                "nickname": u.nickname,
+                "location": u.location or "",
+            }
+            for _, u in friendships
+        ]
+        return {"ok": True, "friends": friends}
+    finally:
+        db.close()
+
+
+@app.post("/api/friends")
+async def api_add_friend(
+    body: AddFriendRequest,
+    token: str = Query(...),
+    user_id: int = Depends(get_current_user_id),
+):
+    """添加好友"""
+    require_db()
+    get_client(token)
+    db: Session = next(db_module.get_db())
+    try:
+        target_account = body.target_account.strip()
+        if not target_account:
+            raise HTTPException(400, "请输入账号")
+
+        target = db.query(User).filter(User.supernova_account == target_account).first()
+        if target is None:
+            raise HTTPException(400, detail="该账号不存在")
+
+        current_user = db.query(User).filter(User.id == user_id).first()
+        if current_user and current_user.supernova_account == target_account:
+            raise HTTPException(400, detail="不能添加自己为好友")
+
+        existing = (
+            db.query(Friendship)
+            .filter(Friendship.user_id == user_id, Friendship.friend_id == target.id)
+            .first()
+        )
+        if existing:
+            raise HTTPException(400, detail="对方已是您的好友")
+
+        db.add(Friendship(user_id=user_id, friend_id=target.id))
+        db.add(Friendship(user_id=target.id, friend_id=user_id))
+        db.commit()
+
+        return {
+            "ok": True,
+            "friend": {
+                "id": target.id,
+                "supernova_account": target.supernova_account,
+                "nickname": target.nickname,
+            },
+        }
+    finally:
+        db.close()
+
+
+@app.delete("/api/friends/{friend_id}")
+async def api_delete_friend(
+    friend_id: int,
+    token: str = Query(...),
+    user_id: int = Depends(get_current_user_id),
+):
+    """删除好友"""
+    require_db()
+    get_client(token)
+    db: Session = next(db_module.get_db())
+    try:
+        db.query(Friendship).filter(
+            Friendship.user_id == user_id, Friendship.friend_id == friend_id
+        ).delete()
+        db.query(Friendship).filter(
+            Friendship.user_id == friend_id, Friendship.friend_id == user_id
+        ).delete()
+        db.commit()
+        return {"ok": True}
+    finally:
+        db.close()
+
+
+# ================================================================
+# 课程与任务
+# ================================================================
 
 @app.get("/api/courses")
 async def api_courses(token: str = Query(...)):
@@ -93,20 +335,17 @@ async def api_courses(token: str = Query(...)):
 
 
 @app.get("/api/tasks/{course_id}/{class_id}")
-async def api_tasks(
-    course_id: str,
-    class_id: str,
-    token: str = Query(...),
-):
+async def api_tasks(course_id: str, class_id: str, token: str = Query(...)):
     c = get_client(token)
-    from chaoxing_sign.types import Course
 
     course = Course(course_id=course_id, class_id=class_id, name="")
     tasks = c.get_sign_tasks(course)
 
-    type_name = {SignType.NORMAL: "normal", SignType.PHOTO: "photo",
-                 SignType.GESTURE: "gesture", SignType.LOCATION: "location",
-                 SignType.QRCODE: "qrcode", SignType.CODE: "code"}
+    type_name = {
+        SignType.NORMAL: "normal", SignType.PHOTO: "photo",
+        SignType.GESTURE: "gesture", SignType.LOCATION: "location",
+        SignType.QRCODE: "qrcode", SignType.CODE: "code",
+    }
 
     return {
         "ok": True,
@@ -126,6 +365,10 @@ async def api_tasks(
     }
 
 
+# ================================================================
+# 签到
+# ================================================================
+
 @app.post("/api/sign")
 async def api_sign(
     token: str = Query(...),
@@ -140,9 +383,11 @@ async def api_sign(
 ):
     c = get_client(token)
 
-    type_map = {"normal": SignType.NORMAL, "photo": SignType.PHOTO,
-                "gesture": SignType.GESTURE, "location": SignType.LOCATION,
-                "qrcode": SignType.QRCODE, "code": SignType.CODE}
+    type_map = {
+        "normal": SignType.NORMAL, "photo": SignType.PHOTO,
+        "gesture": SignType.GESTURE, "location": SignType.LOCATION,
+        "qrcode": SignType.QRCODE, "code": SignType.CODE,
+    }
     st = type_map.get(sign_type, SignType.NORMAL)
 
     task = SignTask(
@@ -154,7 +399,6 @@ async def api_sign(
         sign_type=st,
     )
 
-    # 获取预签到详情（解析 preSign HTML）
     task = c.get_sign_detail(task)
 
     kwargs = {}
@@ -169,24 +413,114 @@ async def api_sign(
     return {"ok": ok, "message": "签到成功" if ok else "签到失败"}
 
 
-@app.get("/api/session")
-async def api_session(token: str = Query(...)):
-    c = get_client(token)
-    return {"ok": True, "uid": c.uid, "name": c.name}
+# ================================================================
+# 二维码代签
+# ================================================================
 
+@app.post("/api/checkin/qrcode")
+async def api_checkin_qrcode(
+    body: QrcodeSignRequest,
+    token: str = Query(...),
+    user_id: int = Depends(get_current_user_id),
+):
+    """二维码代签：为自己和好友批量签到"""
+    require_db()
+    c = get_client(token)
+
+    enc = ""
+    m = re.search(r"enc=([a-zA-Z0-9_\-]+)", body.qr_data)
+    if m:
+        enc = m.group(1)
+    else:
+        enc = body.qr_data.strip()
+
+    if not enc:
+        raise HTTPException(400, "无法解析二维码内容，缺少 enc 参数")
+
+    task = SignTask(
+        active_id=body.active_id or "",
+        name="",
+        course_name="",
+        course_id=body.course_id or "",
+        class_id=body.class_id or "",
+        sign_type=SignType.QRCODE,
+    )
+
+    results = {"self": "failed", "proxy": []}
+
+    # 为自己签到
+    self_ok = c.sign(task, enc=enc)
+    results["self"] = "success" if self_ok else "failed"
+
+    # 为好友代签（使用好友自己的超星会话）
+    if body.proxy_friend_ids:
+        db: Session = next(db_module.get_db())
+        try:
+            for fid in body.proxy_friend_ids:
+                friendship = (
+                    db.query(Friendship)
+                    .filter(Friendship.user_id == user_id, Friendship.friend_id == fid)
+                    .first()
+                )
+                if not friendship:
+                    results["proxy"].append({"friend_id": fid, "result": "无权代签"})
+                    continue
+
+                friend = db.query(User).filter(User.id == fid).first()
+                if not friend:
+                    results["proxy"].append({"friend_id": fid, "result": "好友不存在"})
+                    continue
+
+                # 获取好友的超星会话
+                friend_client = get_proxy_client(db, fid)
+                if not friend_client:
+                    results["proxy"].append({
+                        "friend_id": fid,
+                        "supernova_account": friend.supernova_account,
+                        "nickname": friend.nickname,
+                        "result": "好友未登录过，无可用会话",
+                    })
+                    continue
+
+                # 用好友自己的会话签到
+                proxy_ok = friend_client.sign(task, enc=enc)
+                proxy_result = "success" if proxy_ok else "failed"
+
+                db.add(ProxyRecord(
+                    user_id=user_id,
+                    target_uid=friend.supernova_account,
+                    active_id=task.active_id,
+                    enc=enc,
+                    result=proxy_result,
+                ))
+                db.commit()
+
+                results["proxy"].append({
+                    "friend_id": fid,
+                    "supernova_account": friend.supernova_account,
+                    "nickname": friend.nickname,
+                    "result": proxy_result,
+                })
+        finally:
+            db.close()
+
+    return {"ok": True, "results": results}
+
+
+# ================================================================
+# 配置
+# ================================================================
 
 @app.get("/api/location_config")
 async def api_location_config(token: str = Query(...)):
-    """获取默认位置配置"""
     get_client(token)
     return {"ok": True, "location": default_location}
 
 
 @app.get("/api/config")
 async def api_public_config():
-    """公开配置 - AMap key 等"""
     return {
-        "amap_key": "你的高德地图key",  # 用户需自行替换
+        "amap_key": "你的高德地图key",
         "amap_version": "2.0",
     }
 

@@ -5,5 +5,13 @@
         "longitude": "116.404",
         "latitude": "39.915",
         "name": "北京市"
-    }
+    },
+    "database": {
+        "host": "localhost",
+        "port": 3306,
+        "user": "root",
+        "password": "your-db-password",
+        "database": "chaoxing_sign"
+    },
+    "jwt_secret": "change-this-to-a-random-secret-string"
 }

@@ -402,6 +402,17 @@ class ChaoxingClient:
         params["enc"] = enc
         return self._do_sign_get(task, params)
 
+    def sign_with_uid(self, task: SignTask, target_uid: str, **kwargs) -> bool:
+        """为指定 uid 执行签到（代签核心方法）"""
+        params = self._base_params(task)
+        params["uid"] = target_uid
+        if kwargs.get("enc"):
+            params["enc"] = kwargs["enc"]
+        if kwargs.get("longitude"):
+            params["longitude"] = kwargs["longitude"]
+            params["latitude"] = kwargs.get("latitude", "-1")
+        return self._do_sign_get(task, params)
+
     def _do_sign_get(self, task: SignTask, params: dict) -> bool:
         """GET 方式调用签到接口"""
         try:

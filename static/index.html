@@ -7,92 +7,311 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <title>超星学习通签到</title>
     <link rel="stylesheet" href="/static/css/style.css">
-    <!-- jsQR for QR scanning -->
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
-    <!-- AMap (loaded dynamically when needed) -->
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.4/dist/vue.global.prod.js"></script>
 </head>
 <body>
 <div id="app" class="app">
 
-    <!-- ========== Login Page ========== -->
-    <section id="page-login" class="page active">
+    <!-- ====== Login Page ====== -->
+    <section v-if="currentPage === 'login'" class="page active">
         <div class="login-container">
             <div class="login-logo">&#x1F4DD;</div>
             <h1 class="login-title">超星学习通签到</h1>
             <p class="login-subtitle">Universal Platform</p>
             <div class="form-group">
-                <input type="tel" id="login-phone" class="input" placeholder="手机号" maxlength="11" autocomplete="tel">
+                <input type="tel" v-model="loginPhone" class="input" placeholder="手机号" maxlength="11" autocomplete="tel"
+                       @keyup.enter="doLogin">
             </div>
             <div class="form-group">
-                <input type="password" id="login-password" class="input" placeholder="密码" autocomplete="current-password">
+                <input type="password" v-model="loginPassword" class="input" placeholder="密码" autocomplete="current-password"
+                       @keyup.enter="doLogin">
             </div>
-            <button id="login-btn" class="btn btn-primary" onclick="doLogin()">登 录</button>
+            <button class="btn btn-primary" @click="doLogin" :disabled="loggingIn">
+                {{ loggingIn ? '登录中...' : '登 录' }}
+            </button>
             <p class="login-hint">使用超星学习通账号密码登录</p>
         </div>
     </section>
 
-    <!-- ========== Courses Page ========== -->
-    <section id="page-courses" class="page">
-        <nav class="navbar">
-            <span class="navbar-title">课程</span>
-            <span class="navbar-right" onclick="doLogout()">退出</span>
-        </nav>
-        <div class="search-box">
-            <input type="text" id="course-search" class="input" placeholder="搜索课程" oninput="filterCourses()">
+    <!-- ====== Home Page ====== -->
+    <section v-if="currentPage === 'home'" class="page active">
+        <div class="home-header">
+            <div class="home-avatar">{{ (user.nickname || name)[0] }}</div>
+            <div class="home-welcome">
+                <p class="home-greeting">你好，{{ user.nickname || name }}</p>
+                <p class="home-account">账号: {{ user.supernova_account || uid }}</p>
+            </div>
         </div>
-        <div class="page-content" id="course-list"></div>
+        <div class="page-content">
+            <div class="action-cards">
+                <div class="action-card" @click="currentPage = 'scan'">
+                    <span class="action-icon">&#x1F4F7;</span>
+                    <span class="action-label">扫二维码签到</span>
+                    <span class="action-desc">扫码完成签到</span>
+                </div>
+                <div class="action-card" @click="currentPage = 'courses'">
+                    <span class="action-icon">&#x1F4DA;</span>
+                    <span class="action-label">我的课程</span>
+                    <span class="action-desc">查看签到任务</span>
+                </div>
+                <div class="action-card" @click="currentPage = 'friends'">
+                    <span class="action-icon">&#x1F46B;</span>
+                    <span class="action-label">好友管理</span>
+                    <span class="action-desc" v-if="friends.length">共 {{ friends.length }} 位好友</span>
+                    <span class="action-desc" v-else>添加好友</span>
+                </div>
+            </div>
+        </div>
     </section>
 
-    <!-- ========== Tasks Page ========== -->
-    <section id="page-tasks" class="page">
+    <!-- ====== Courses Page ====== -->
+    <section v-if="currentPage === 'courses'" class="page active">
         <nav class="navbar">
-            <span class="navbar-back" onclick="showPage('courses')">&#x2039; 返回</span>
-            <span class="navbar-title" id="task-course-name">课程</span>
+            <span class="navbar-back" @click="currentPage = 'home'">&#x2039; 首页</span>
+            <span class="navbar-title">课程</span>
             <span></span>
         </nav>
-        <div class="page-content" id="task-list"></div>
+        <div class="search-box">
+            <input type="text" v-model="courseSearch" class="input" placeholder="搜索课程" @input="filterCourses">
+        </div>
+        <div class="page-content">
+            <div v-if="filteredCourses.length === 0" class="empty-state">
+                <p>暂无课程</p>
+            </div>
+            <div v-for="co in filteredCourses" :key="co.course_id" class="course-item"
+                 @click="openTasks(co)">
+                <span class="course-icon">{{ courseIcons[co.course_id.charCodeAt(0) % 8] }}</span>
+                <div class="course-info">
+                    <span class="course-name">{{ co.name }}</span>
+                    <span class="course-teacher" v-if="co.teacher">{{ co.teacher }}</span>
+                </div>
+                <span class="course-arrow">&#x203A;</span>
+            </div>
+        </div>
     </section>
 
-    <!-- ========== QR Code Sign Modal ========== -->
-    <div id="modal-qr" class="modal">
-        <div class="modal-mask" onclick="closeQrModal()"></div>
+    <!-- ====== Tasks Page ====== -->
+    <section v-if="currentPage === 'tasks'" class="page active">
+        <nav class="navbar">
+            <span class="navbar-back" @click="currentPage = 'courses'">&#x2039; 返回</span>
+            <span class="navbar-title">{{ currentCourseName }}</span>
+            <span></span>
+        </nav>
+        <div class="page-content">
+            <div v-if="loadingTasks" class="empty-state"><p>加载中...</p></div>
+            <div v-else-if="activeTasks.length === 0 && endedTasks.length === 0" class="empty-state">
+                <p>当前没有签到任务</p>
+            </div>
+            <template v-else>
+                <div class="section-title" v-if="activeTasks.length">进行中 ({{ activeTasks.length }})</div>
+                <div v-for="t in activeTasks" :key="t.active_id" class="task-item">
+                    <div class="task-info">
+                        <span class="task-name">{{ t.name }}</span>
+                        <span class="task-time">{{ t.start_time }}</span>
+                    </div>
+                    <button class="btn btn-small btn-badge"
+                            :class="'badge-' + t.sign_type"
+                            @click="startSign(t)">{{ typeLabels[t.sign_type] }}</button>
+                </div>
+                <div class="section-title ended" v-if="endedTasks.length">已结束 ({{ endedTasks.length }})</div>
+                <div v-for="t in endedTasks" :key="t.active_id" class="task-item ended-item">
+                    <div class="task-info">
+                        <span class="task-name">{{ t.name }}</span>
+                        <span class="task-time">{{ t.start_time }}</span>
+                    </div>
+                    <span class="badge badge-ended">{{ typeLabels[t.sign_type] }}</span>
+                </div>
+            </template>
+        </div>
+    </section>
+
+    <!-- ====== Scan & Proxy Sign Page ====== -->
+    <section v-if="currentPage === 'scan'" class="page active">
+        <nav class="navbar">
+            <span class="navbar-back" @click="exitScanPage">&#x2039; 返回</span>
+            <span class="navbar-title">扫二维码签到</span>
+            <span></span>
+        </nav>
+        <div class="page-content scan-page-content">
+
+            <!-- 操作标题栏：左标题 + 右按钮 -->
+            <div class="scan-action-bar">
+                <span class="scan-action-title">帮助同学</span>
+                <button v-if="!cameraActive" class="btn-scan-go" @click="startScanCamera">扫描二维码</button>
+                <button v-else class="btn-scan-stop" @click="stopScanCamera">关闭摄像头</button>
+            </div>
+
+            <!-- 摄像头预览（仅扫码时显示） -->
+            <div v-if="cameraActive" class="scan-camera-bar">
+                <video id="qr-video" class="scan-video" autoplay playsinline></video>
+                <canvas id="qr-canvas" style="display:none"></canvas>
+            </div>
+
+            <!-- 好友多选列表 -->
+            <div class="scan-friend-list">
+                <div v-if="friends.length === 0" class="scan-friend-empty">
+                    <p>暂无好友，请先在「我的」页面添加好友</p>
+                </div>
+                <div v-for="f in friends" :key="f.id" class="scan-friend-item"
+                     :class="{checked: selectedFriends.includes(f.id)}"
+                     @click="toggleFriend(f.id)">
+                    <!-- 勾选框 -->
+                    <div class="sfi-check" :class="{active: selectedFriends.includes(f.id)}">
+                        <span v-if="selectedFriends.includes(f.id)">&#x2713;</span>
+                    </div>
+                    <!-- 头像 -->
+                    <div class="sfi-avatar">
+                        <span>{{ f.nickname ? f.nickname[0] : '?' }}</span>
+                    </div>
+                    <!-- 信息区 -->
+                    <div class="sfi-info">
+                        <div class="sfi-name-row">
+                            <span class="sfi-name">{{ f.nickname }}</span>
+                            <span class="sfi-tag-free">免费</span>
+                            <span class="sfi-tag-coin">金币:{{ f.coins || 0 }}个</span>
+                        </div>
+                        <div class="sfi-phone">{{ getMaskedPhone(f) }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 签到日志区 -->
+            <div class="scan-log">
+                <div class="scan-log-title">签到日志</div>
+                <div class="scan-log-box" ref="logBox">
+                    <div v-if="scanLogs.length === 0" class="scan-log-empty">
+                        <div class="scan-log-empty-icon">
+                            <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+                                <rect x="8" y="4" width="32" height="40" rx="4" stroke="#D0D0D0" stroke-width="2" fill="#F5F5F5"/>
+                                <line x1="16" y1="16" x2="32" y2="16" stroke="#DDD" stroke-width="2" stroke-linecap="round"/>
+                                <line x1="16" y1="22" x2="28" y2="22" stroke="#DDD" stroke-width="2" stroke-linecap="round"/>
+                                <line x1="16" y1="28" x2="24" y2="28" stroke="#DDD" stroke-width="2" stroke-linecap="round"/>
+                            </svg>
+                        </div>
+                        <p>暂无日志</p>
+                    </div>
+                    <div v-for="(log, i) in scanLogs" :key="i" class="scan-log-item" :class="'log-' + log.status">
+                        <span class="log-time">{{ log.time }}</span>
+                        <span class="log-name">{{ log.name }}</span>
+                        <span class="log-status">{{ log.status === 'success' ? '签到成功' : log.status === 'fail' ? '签到失败' : log.text }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ====== Friends Page ====== -->
+    <section v-if="currentPage === 'friends'" class="page active">
+        <nav class="navbar">
+            <span class="navbar-back" @click="currentPage = 'home'">&#x2039; 首页</span>
+            <span class="navbar-title">我的好友</span>
+            <span class="navbar-right" @click="showAddFriendModal = true">添加好友</span>
+        </nav>
+        <div class="page-content">
+            <div v-if="friends.length === 0" class="empty-state">
+                <p>暂无好友，快去添加吧</p>
+            </div>
+            <div v-for="f in friends" :key="f.id" class="friend-card">
+                <div class="friend-avatar">{{ f.nickname[0] }}</div>
+                <div class="friend-info">
+                    <span class="friend-name">{{ f.nickname }}</span>
+                    <span class="friend-account">{{ f.supernova_account }}</span>
+                </div>
+                <button class="btn btn-small btn-outline" @click="deleteFriend(f)">删除</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- ====== Profile Page ====== -->
+    <section v-if="currentPage === 'profile'" class="page active">
+        <nav class="navbar">
+            <span class="navbar-back" @click="currentPage = 'home'">&#x2039; 首页</span>
+            <span class="navbar-title">我的</span>
+            <span></span>
+        </nav>
+        <div class="page-content">
+            <div class="profile-card">
+                <div class="profile-avatar">{{ (user.nickname || name)[0] }}</div>
+                <div class="profile-info">
+                    <p class="profile-name">{{ user.nickname || name }}</p>
+                    <p class="profile-account">超星账号: {{ user.supernova_account || uid }}</p>
+                </div>
+            </div>
+            <div class="profile-menu">
+                <div class="profile-item" @click="currentPage = 'friends'">
+                    <span>我的好友</span>
+                    <span class="profile-badge" v-if="friends.length">{{ friends.length }}</span>
+                    <span class="course-arrow">&#x203A;</span>
+                </div>
+            </div>
+            <button class="btn btn-primary" @click="doLogout" style="margin-top: 24px;">退出登录</button>
+        </div>
+    </section>
+
+    <!-- ====== Add Friend Modal ====== -->
+    <div v-if="showAddFriendModal" class="modal">
+        <div class="modal-mask" @click="showAddFriendModal = false"></div>
         <div class="modal-content">
             <div class="modal-header">
-                <span>二维码签到</span>
-                <span class="modal-close" onclick="closeQrModal()">&#x2715;</span>
+                <span>添加好友</span>
+                <span class="modal-close" @click="showAddFriendModal = false">&#x2715;</span>
             </div>
-            <div class="qr-tabs" id="qr-tabs">
-                <div class="qr-tab active" data-tab="scan" onclick="switchQrTab('scan')">扫码</div>
-                <div class="qr-tab" data-tab="file" onclick="switchQrTab('file')">文件</div>
-                <div class="qr-tab" data-tab="text" onclick="switchQrTab('text')">文字</div>
-                <div class="qr-tab" data-tab="enc" onclick="switchQrTab('enc')">enc</div>
-            </div>
-            <!-- Scan tab -->
-            <div class="qr-panel active" id="qr-panel-scan">
-                <video id="qr-video" class="qr-video" autoplay playsinline></video>
-                <canvas id="qr-canvas" style="display:none"></canvas>
-                <p class="qr-hint">将二维码对准摄像头</p>
-                <p class="qr-result" id="qr-scan-result"></p>
+            <div style="padding:16px">
+                <input type="text" v-model="addFriendAccount" class="input"
+                       placeholder="请输入好友的超星账号 (UID)"
+                       @keyup.enter="doAddFriend">
+                <button class="btn btn-primary" @click="doAddFriend"
+                        :disabled="addingFriend" style="margin-top:12px;width:100%">
+                    {{ addingFriend ? '添加中...' : '搜索并添加' }}
+                </button>
             </div>
         </div>
     </div>
 
-    <!-- ========== Location Sign Modal ========== -->
-    <div id="modal-location" class="modal">
-        <div class="modal-mask" onclick="closeLocationModal()"></div>
-        <div class="modal-content modal-full">
+    <!-- ====== Sign Result Modal ====== -->
+    <div v-if="showSignResult" class="modal">
+        <div class="modal-mask" @click="showSignResult = false"></div>
+        <div class="modal-content">
             <div class="modal-header">
-                <span>位置签到</span>
-                <span class="modal-close" onclick="closeLocationModal()">&#x2715;</span>
+                <span>签到结果</span>
+                <span class="modal-close" @click="showSignResult = false">&#x2715;</span>
             </div>
-            <div id="location-map" class="location-map"></div>
-            <div class="location-info" id="location-info">点击地图选择位置</div>
-            <button class="btn btn-primary location-submit" onclick="doLocationSign()">确认签到</button>
+            <div style="padding:16px">
+                <div class="sign-result-item">
+                    <span>自己</span>
+                    <span :class="signResult.self === 'success' ? 'text-success' : 'text-fail'">
+                        {{ signResult.self === 'success' ? '✓ 成功' : '✗ 失败' }}
+                    </span>
+                </div>
+                <div v-for="p in signResult.proxy" :key="p.friend_id" class="sign-result-item">
+                    <span>{{ p.nickname || p.supernova_account }}</span>
+                    <span :class="p.result === 'success' ? 'text-success' : 'text-fail'">{{ p.result }}</span>
+                </div>
+                <button class="btn btn-primary" @click="showSignResult = false; currentPage = 'home';"
+                        style="margin-top:16px;width:100%">完成</button>
+            </div>
         </div>
     </div>
 
-    <!-- ========== Toast ========== -->
-    <div id="toast" class="toast"></div>
+    <!-- ====== Toast ====== -->
+    <div id="toast" class="toast" :class="{show: toastMsg}" v-text="toastMsg"></div>
+
+    <!-- ====== Bottom Nav ====== -->
+    <nav v-if="showNav" class="bottom-nav">
+        <div class="nav-item" :class="{active: currentPage === 'home'}" @click="currentPage = 'home'">
+            <span class="nav-icon">&#x1F3E0;</span>
+            <span class="nav-label">首页</span>
+        </div>
+        <div class="nav-item" :class="{active: currentPage === 'courses'}" @click="currentPage = 'courses'; loadCourses()">
+            <span class="nav-icon">&#x1F4DA;</span>
+            <span class="nav-label">课程</span>
+        </div>
+        <div class="nav-item" :class="{active: currentPage === 'profile'}" @click="currentPage = 'profile'">
+            <span class="nav-icon">&#x1F464;</span>
+            <span class="nav-label">我的</span>
+        </div>
+    </nav>
 
 </div>
 
