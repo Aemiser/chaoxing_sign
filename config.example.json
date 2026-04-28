@@ -1,0 +1,9 @@
+{
+    "phone": "你的手机号",
+    "password": "你的密码",
+    "location": {
+        "longitude": "116.404",
+        "latitude": "39.915",
+        "name": "北京市"
+    }
+}

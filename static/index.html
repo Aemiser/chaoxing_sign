@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <title>超星学习通签到</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <!-- jsQR for QR scanning -->
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <!-- AMap (loaded dynamically when needed) -->
+</head>
+<body>
+<div id="app" class="app">
+
+    <!-- ========== Login Page ========== -->
+    <section id="page-login" class="page active">
+        <div class="login-container">
+            <div class="login-logo">&#x1F4DD;</div>
+            <h1 class="login-title">超星学习通签到</h1>
+            <p class="login-subtitle">Universal Platform</p>
+            <div class="form-group">
+                <input type="tel" id="login-phone" class="input" placeholder="手机号" maxlength="11" autocomplete="tel">
+            </div>
+            <div class="form-group">
+                <input type="password" id="login-password" class="input" placeholder="密码" autocomplete="current-password">
+            </div>
+            <button id="login-btn" class="btn btn-primary" onclick="doLogin()">登 录</button>
+            <p class="login-hint">使用超星学习通账号密码登录</p>
+        </div>
+    </section>
+
+    <!-- ========== Courses Page ========== -->
+    <section id="page-courses" class="page">
+        <nav class="navbar">
+            <span class="navbar-title">课程</span>
+            <span class="navbar-right" onclick="doLogout()">退出</span>
+        </nav>
+        <div class="search-box">
+            <input type="text" id="course-search" class="input" placeholder="搜索课程" oninput="filterCourses()">
+        </div>
+        <div class="page-content" id="course-list"></div>
+    </section>
+
+    <!-- ========== Tasks Page ========== -->
+    <section id="page-tasks" class="page">
+        <nav class="navbar">
+            <span class="navbar-back" onclick="showPage('courses')">&#x2039; 返回</span>
+            <span class="navbar-title" id="task-course-name">课程</span>
+            <span></span>
+        </nav>
+        <div class="page-content" id="task-list"></div>
+    </section>
+
+    <!-- ========== QR Code Sign Modal ========== -->
+    <div id="modal-qr" class="modal">
+        <div class="modal-mask" onclick="closeQrModal()"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <span>二维码签到</span>
+                <span class="modal-close" onclick="closeQrModal()">&#x2715;</span>
+            </div>
+            <div class="qr-tabs" id="qr-tabs">
+                <div class="qr-tab active" data-tab="scan" onclick="switchQrTab('scan')">扫码</div>
+                <div class="qr-tab" data-tab="file" onclick="switchQrTab('file')">文件</div>
+                <div class="qr-tab" data-tab="text" onclick="switchQrTab('text')">文字</div>
+                <div class="qr-tab" data-tab="enc" onclick="switchQrTab('enc')">enc</div>
+            </div>
+            <!-- Scan tab -->
+            <div class="qr-panel active" id="qr-panel-scan">
+                <video id="qr-video" class="qr-video" autoplay playsinline></video>
+                <canvas id="qr-canvas" style="display:none"></canvas>
+                <p class="qr-hint">将二维码对准摄像头</p>
+                <p class="qr-result" id="qr-scan-result"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== Location Sign Modal ========== -->
+    <div id="modal-location" class="modal">
+        <div class="modal-mask" onclick="closeLocationModal()"></div>
+        <div class="modal-content modal-full">
+            <div class="modal-header">
+                <span>位置签到</span>
+                <span class="modal-close" onclick="closeLocationModal()">&#x2715;</span>
+            </div>
+            <div id="location-map" class="location-map"></div>
+            <div class="location-info" id="location-info">点击地图选择位置</div>
+            <button class="btn btn-primary location-submit" onclick="doLocationSign()">确认签到</button>
+        </div>
+    </div>
+
+    <!-- ========== Toast ========== -->
+    <div id="toast" class="toast"></div>
+
+</div>
+
+<script src="/static/js/app.js"></script>
+</body>
+</html>

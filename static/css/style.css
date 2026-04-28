@@ -1,0 +1,669 @@
+/* ============================================================
+   超星学习通签到 - Mobile-First Styles
+   Design reference: chaoxing-sign-app
+   Base viewport: 375px
+   ============================================================ */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    --bg: #f5f6f8;
+    --card: #ffffff;
+    --text: #000000;
+    --gray: gray;
+    --muted: #c1c1c1;
+    --border: #ebebeb;
+    --primary: #1677ff;
+    --success: #00b578;
+    --warning: #ff8f1f;
+    --danger: #ff3141;
+    --radius: 10px;
+    --nav-height: 44px;
+    --tab-height: 50px;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* ============================================================
+   App Container
+   ============================================================ */
+
+.app {
+    max-width: 500px;
+    margin: 0 auto;
+    min-height: 100vh;
+    background: var(--bg);
+    position: relative;
+    overflow-x: hidden;
+}
+
+/* ============================================================
+   Pages
+   ============================================================ */
+
+.page {
+    display: none;
+    min-height: 100vh;
+    background: var(--bg);
+}
+
+.page.active {
+    display: block;
+}
+
+.page-content {
+    padding-bottom: 20px;
+}
+
+/* ============================================================
+   NavBar (reference: antd-mobile NavBar)
+   ============================================================ */
+
+.navbar {
+    height: var(--nav-height);
+    background: var(--card);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    border-bottom: 0.5px solid var(--border);
+}
+
+.navbar-title {
+    font-size: 17px;
+    font-weight: 500;
+    text-align: center;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.navbar-back {
+    color: var(--primary);
+    font-size: 15px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.navbar-right {
+    color: var(--primary);
+    font-size: 15px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+/* ============================================================
+   Login Page
+   ============================================================ */
+
+.login-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 40px 30px;
+    background: var(--card);
+}
+
+.login-logo {
+    font-size: 64px;
+    margin-bottom: 16px;
+}
+
+.login-title {
+    font-size: 22px;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.login-subtitle {
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 40px;
+}
+
+.login-hint {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 24px;
+    text-align: center;
+}
+
+/* ============================================================
+   Form Elements
+   ============================================================ */
+
+.form-group {
+    width: 100%;
+    margin-bottom: 16px;
+}
+
+.input {
+    width: 100%;
+    height: 44px;
+    padding: 0 14px;
+    font-size: 15px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--card);
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.input:focus {
+    border-color: var(--primary);
+}
+
+.input::placeholder {
+    color: var(--muted);
+}
+
+.btn {
+    display: inline-block;
+    width: 100%;
+    height: 44px;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.2s;
+    text-align: center;
+    line-height: 44px;
+}
+
+.btn:active {
+    opacity: 0.8;
+}
+
+.btn-primary {
+    background: var(--primary);
+    color: white;
+}
+
+.btn-outline {
+    background: var(--card);
+    color: var(--primary);
+    border: 1px solid var(--primary);
+}
+
+.btn-success {
+    background: var(--success);
+    color: white;
+}
+
+.btn-small {
+    width: auto;
+    height: 32px;
+    line-height: 32px;
+    font-size: 13px;
+    padding: 0 14px;
+    border-radius: 16px;
+}
+
+/* ============================================================
+   Search Box (reference: my-course page)
+   ============================================================ */
+
+.search-box {
+    padding: 10px 16px;
+}
+
+.search-box .input {
+    background: var(--card);
+    border-radius: var(--radius);
+    height: 36px;
+    font-size: 13px;
+    text-align: center;
+}
+
+/* ============================================================
+   Course / Task Cards (reference: courseItem / listItem)
+   ============================================================ */
+
+.course-item {
+    display: flex;
+    align-items: center;
+    background: var(--card);
+    border-radius: var(--radius);
+    height: 65px;
+    margin: 8px 14px 0 14px;
+    padding: 0 12px;
+    gap: 12px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.course-item:active {
+    background: #f0f0f0;
+}
+
+.course-item .ci-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 5px;
+    background: #f0f0f0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+}
+
+.course-item .ci-icon img {
+    width: 100%;
+    height: 100%;
+    border-radius: 5px;
+    object-fit: cover;
+}
+
+.course-item .ci-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.course-item .ci-title {
+    font-size: 15px;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.course-item .ci-sub {
+    font-size: 12px;
+    color: var(--gray);
+    margin-top: 2px;
+}
+
+.course-item .ci-arrow {
+    color: var(--muted);
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+/* Task item */
+.task-item {
+    display: flex;
+    align-items: center;
+    background: var(--card);
+    border-radius: var(--radius);
+    height: 60px;
+    margin: 0 14px 8px 14px;
+    padding: 0 12px;
+    gap: 12px;
+}
+
+.task-item .ti-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+}
+
+.task-item .ti-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.task-item .ti-title {
+    font-size: 15px;
+    color: var(--text);
+}
+
+.task-item .ti-time {
+    font-size: 12px;
+    color: var(--gray);
+    margin-top: 2px;
+}
+
+.task-item .ti-badge {
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 12px;
+    color: white;
+    font-weight: 500;
+    flex-shrink: 0;
+    cursor: pointer;
+}
+
+.badge-normal  { background: var(--success); }
+.badge-photo   { background: #8b5cf6; }
+.badge-gesture { background: var(--primary); }
+.badge-location{ background: #f59e0b; }
+.badge-qrcode  { background: var(--warning); }
+.badge-code    { background: #ec4899; }
+
+.badge-ended {
+    background: var(--muted) !important;
+    color: white;
+}
+
+/* ============================================================
+   Empty State
+   ============================================================ */
+
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--muted);
+}
+
+.empty-state .empty-icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+}
+
+.empty-state p {
+    font-size: 14px;
+}
+
+/* ============================================================
+   Section Title
+   ============================================================ */
+
+.section-title {
+    font-size: 13px;
+    color: var(--gray);
+    padding: 16px 14px 8px;
+}
+
+/* ============================================================
+   Modal (reference: antd-mobile Popup)
+   ============================================================ */
+
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1000;
+}
+
+.modal.show {
+    display: block;
+}
+
+.modal-mask {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.45);
+}
+
+.modal-content {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    max-width: 500px;
+    margin: 0 auto;
+    background: var(--card);
+    border-radius: 16px 16px 0 0;
+    max-height: 85vh;
+    overflow-y: auto;
+    padding-bottom: env(safe-area-inset-bottom);
+}
+
+.modal-full {
+    height: 90vh;
+    border-radius: 0;
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 18px;
+    font-size: 17px;
+    font-weight: 500;
+    border-bottom: 0.5px solid var(--border);
+}
+
+.modal-close {
+    font-size: 18px;
+    color: var(--gray);
+    cursor: pointer;
+    padding: 4px;
+}
+
+/* ============================================================
+   QR Code Tabs
+   ============================================================ */
+
+.qr-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+}
+
+.qr-tab {
+    flex: 1;
+    text-align: center;
+    padding: 12px 0;
+    font-size: 14px;
+    color: var(--gray);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+}
+
+.qr-tab.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+    font-weight: 500;
+}
+
+.qr-panel {
+    display: none;
+    padding: 16px;
+}
+
+.qr-panel.active {
+    display: block;
+}
+
+.qr-video {
+    width: 100%;
+    max-height: 300px;
+    background: #000;
+    border-radius: 8px;
+    object-fit: cover;
+}
+
+.qr-hint {
+    text-align: center;
+    color: var(--gray);
+    font-size: 13px;
+    margin-top: 12px;
+}
+
+.qr-result {
+    text-align: center;
+    font-size: 13px;
+    margin-top: 8px;
+    word-break: break-all;
+}
+
+.qr-result.success {
+    color: var(--success);
+}
+
+.qr-result.error {
+    color: var(--danger);
+}
+
+.qr-file-btn {
+    display: block;
+    text-align: center;
+    cursor: pointer;
+}
+
+.qr-textarea {
+    height: 80px;
+    resize: none;
+    padding: 10px 14px;
+    margin-bottom: 12px;
+}
+
+.qr-submit,
+.location-submit {
+    margin: 12px 16px 24px;
+    width: calc(100% - 32px);
+}
+
+.qr-enc-input {
+    margin-top: 0;
+}
+
+/* ============================================================
+   Location Map
+   ============================================================ */
+
+.location-map {
+    width: 100%;
+    height: 55vh;
+    background: #e8e8e8;
+}
+
+.location-info {
+    padding: 12px 18px;
+    font-size: 14px;
+    color: var(--gray);
+    min-height: 44px;
+}
+
+.location-pin {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -100%);
+    font-size: 32px;
+    z-index: 10;
+    pointer-events: none;
+}
+
+/* ============================================================
+   Profile Page
+   ============================================================ */
+
+.profile-card {
+    display: flex;
+    align-items: center;
+    background: var(--card);
+    padding: 20px 16px;
+    margin-bottom: 8px;
+    gap: 14px;
+}
+
+.profile-avatar {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: #e8e8e8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+}
+
+.profile-name {
+    font-size: 17px;
+    font-weight: 500;
+}
+
+.profile-uid {
+    font-size: 12px;
+    color: var(--gray);
+}
+
+/* ============================================================
+   Toast
+   ============================================================ */
+
+.toast {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.75);
+    color: white;
+    padding: 10px 24px;
+    border-radius: 8px;
+    font-size: 14px;
+    z-index: 2000;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+    white-space: nowrap;
+}
+
+.toast.show {
+    opacity: 1;
+}
+
+/* ============================================================
+   Loading
+   ============================================================ */
+
+.loading {
+    text-align: center;
+    padding: 40px 0;
+    color: var(--gray);
+}
+
+.spinner {
+    display: inline-block;
+    width: 24px;
+    height: 24px;
+    border: 3px solid var(--border);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ============================================================
+   Scroll area
+   ============================================================ */
+
+.page-content {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* ============================================================
+   Responsive: on larger screens, center the content
+   ============================================================ */
+
+@media (min-width: 501px) {
+    .app {
+        border-left: 1px solid var(--border);
+        border-right: 1px solid var(--border);
+    }
+}
