@@ -62,7 +62,7 @@
             <div class="home-active-section">
                 <div class="loading" v-if="loadingActive"><span class="spinner"></span></div>
                 <div v-else-if="activeCourses.length > 0">
-                <div class="section-title">有签到活动的课程</div>
+                <div class="section-title">有签到活动的课程<span class="scan-friend-refresh" @click="loadActiveCourses()" style="margin-left:8px">&#x21BB; 刷新</span></div>
                 <div v-for="co in activeCourses" :key="co.course_id" class="course-item"
                      @click="openTasks(co)">
                     <span class="course-icon">{{ courseIcons[co.course_id.charCodeAt(0) % 8] }}</span>
@@ -123,7 +123,11 @@
                         <span class="task-name">{{ t.name }}</span>
                         <span class="task-time">{{ t.start_time }}</span>
                     </div>
-                    <button v-if="t.signed" class="btn btn-small btn-badge badge-signed" disabled>已签</button>
+                    <span v-if="t.signed" style="display:flex;gap:6px;flex-shrink:0">
+                        <span class="btn btn-small btn-badge badge-signed" style="opacity:0.7">已签</span>
+                        <button v-if="t.sign_type === 'qrcode' || t.sign_type === 'code' || t.sign_type === 'gesture'" class="btn btn-small btn-badge badge-proxy"
+                                @click="startProxySign(t)">代签</button>
+                    </span>
                     <button v-else class="btn btn-small btn-badge"
                             :class="'badge-' + t.sign_type"
                             @click="startSign(t)">{{ typeLabels[t.sign_type] }}</button>
@@ -144,22 +148,58 @@
     <section v-if="currentPage === 'scan'" class="page active">
         <nav class="navbar">
             <span class="navbar-back" @click="exitScanPage">&#x2039; 返回</span>
-            <span class="navbar-title">扫二维码签到</span>
+            <span class="navbar-title">{{ signMode === 'code' ? '签到码签到' : signMode === 'gesture' ? '手势签到' : '扫二维码签到' }}</span>
             <span></span>
         </nav>
         <div class="page-content scan-page-content">
 
-            <!-- 操作标题栏：左标题 + 右按钮 -->
-            <div class="scan-action-bar">
+            <!-- 操作标题栏：左标题 + 右按钮（二维码模式） -->
+            <div v-if="signMode === 'qrcode'" class="scan-action-bar">
                 <span class="scan-action-title">帮助同学</span>
                 <button v-if="!cameraActive" class="btn-scan-go" @click="startScanCamera">扫描二维码</button>
                 <button v-else class="btn-scan-stop" @click="stopScanCamera">关闭摄像头</button>
             </div>
 
+            <!-- 签到码输入栏（签到码模式） -->
+            <div v-if="signMode === 'code'" class="scan-action-bar">
+                <span class="scan-action-title">帮助同学</span>
+                <div style="display:flex;gap:8px;flex:1;margin-left:12px">
+                    <input type="text" v-model="signCodeInput" class="input" placeholder="请输入签到码"
+                           style="flex:1;height:36px" @keyup.enter="doCodeSign">
+                    <button class="btn-scan-go" @click="doCodeSign" :disabled="signing"
+                            style="flex-shrink:0;white-space:nowrap;padding:8px 16px">
+                        {{ signing ? '签到中...' : '确认签到' }}
+                    </button>
+                </div>
+            </div>
+
             <!-- 摄像头预览（仅扫码时显示） -->
-            <div v-if="cameraActive" class="scan-camera-bar">
+            <div v-if="cameraActive && signMode === 'qrcode'" class="scan-camera-bar">
                 <video id="qr-video" class="scan-video" autoplay playsinline></video>
                 <canvas id="qr-canvas" style="display:none"></canvas>
+            </div>
+
+            <!-- 手势签到区 -->
+            <div v-if="signMode === 'gesture'" class="gesture-area">
+                <p class="gesture-hint">重绘发起者传达的手势图案完成签到</p>
+                <canvas ref="gestureCanvas" class="gesture-canvas-main"
+                        @touchstart.prevent="gestureStart"
+                        @touchmove.prevent="gestureMove"
+                        @touchend.prevent="gestureEnd"
+                        @mousedown.prevent="gestureStart"
+                        @mousemove.prevent="gestureMove"
+                        @mouseup.prevent="gestureEnd"
+                        @mouseleave.prevent="gestureEnd"></canvas>
+                <div class="gesture-code-display" v-if="gestureCode">
+                    手势码: {{ gestureCode }}
+                    <button class="btn-scan-go" @click="doGestureSign" :disabled="signing" style="margin-left:12px;padding:6px 16px">
+                        {{ signing ? '签到中...' : '确认签到' }}
+                    </button>
+                    <button class="btn-scan-stop" @click="gestureReset" style="margin-left:8px;padding:6px 16px">重置</button>
+                </div>
+                <div v-else class="gesture-code-display gesture-code-wait">
+                    请绘制手势图案
+                </div>
             </div>
 
             <!-- 好友多选列表 -->

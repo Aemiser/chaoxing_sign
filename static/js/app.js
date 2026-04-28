@@ -43,7 +43,12 @@ const app = createApp({
                 location: '位置签到', qrcode: '二维码签到', code: '签到码签到',
             },
 
-            // 扫码
+            // 扫码/签到码/手势
+            signMode: 'qrcode',
+            signCodeInput: '',
+            gestureCode: '',
+            gesturePoints: [],
+            gestureDrawing: false,
             cameraActive: false,
             qrVideoStream: null,
             qrScanTimer: null,
@@ -88,9 +93,9 @@ const app = createApp({
     watch: {
         currentPage(val) {
             if (this.cameraActive) this.stopScanCamera();
-            if (val === 'home') { this.loadActiveCourses(); this.loadFriends(); }
+            if (val === 'home') { var self = this; self.loadFriends().then(function() { self.loadActiveCourses(); }); }
             if (val === 'courses') this.loadCourses();
-            if (val === 'scan') this.loadFriends();
+            if (val === 'scan') { this.loadFriends(); if (this.signMode === 'gesture') { var s = this; nextTick(function() { s.gestureInitCanvas(); }); } }
             if (val === 'friends') this.loadFriends();
             if (val === 'tasks') { var self = this; nextTick(function() { self.loadTasks(); }); }
             if (val === 'login') this.loginPassword = '';
@@ -184,7 +189,7 @@ const app = createApp({
                 self.currentPage = 'home';
                 self.toast('登录成功');
                 // 登录后立即预取数据（不等页面切换）
-                if (self.jwt) { self.loadFriends(); self.loadActiveCourses(); }
+                if (self.jwt) { self.loadFriends().then(function() { self.loadActiveCourses(); }); }
             } catch (e) {} finally { self.loggingIn = false; }
         },
 
@@ -246,15 +251,41 @@ const app = createApp({
 
         // 签到
         startSign: function(task) {
-            if (task.sign_type === 'qrcode') {
+            if (task.sign_type === 'qrcode' || task.sign_type === 'code' || task.sign_type === 'gesture') {
+                if (task.sign_type === 'code') this.signMode = 'code';
+                else if (task.sign_type === 'gesture') this.signMode = 'gesture';
+                else this.signMode = 'qrcode';
+                this.selectedFriends = [];
+                this.scanLogs = [];
+                this.signCodeInput = '';
+                this.gestureCode = '';
+                this.gesturePoints = [];
                 this.currentTask = task;
                 this.currentPage = 'scan';
+                if (this.signMode === 'gesture') {
+                    var self = this;
+                    nextTick(function() { self.gestureInitCanvas(); });
+                }
             } else if (task.sign_type === 'location') {
                 this.currentTask = task;
                 this.openLocationModal();
             } else {
                 this.doDirectSign(task);
             }
+        },
+
+        // 已签任务代签：进入扫码页帮好友签到
+        startProxySign: function(task) {
+            this.selectedFriends = [];
+            this.scanLogs = [];
+            this.signCodeInput = '';
+            this.gestureCode = '';
+            this.gesturePoints = [];
+            this.currentTask = task;
+            if (task.sign_type === 'code') this.signMode = 'code';
+            else if (task.sign_type === 'gesture') this.signMode = 'gesture';
+            else this.signMode = 'qrcode';
+            this.currentPage = 'scan';
         },
 
         doDirectSign: async function(task) {
@@ -435,6 +466,223 @@ const app = createApp({
             self.addLog('系统', 'info', '签到完成');
 
             // 如果从任务页来，刷新任务列表
+            if (self.currentTask) {
+                setTimeout(function() { self.loadTasks(); }, 1500);
+            }
+        },
+
+        // 手势签到 (canvas-only)
+        gestureInitCanvas: function() {
+            var canvas = this.$refs.gestureCanvas;
+            if (!canvas) return;
+            var dpr = window.devicePixelRatio || 1;
+            var w = canvas.clientWidth;
+            var h = canvas.clientHeight;
+            canvas.width = w * dpr;
+            canvas.height = h * dpr;
+            var ctx = canvas.getContext('2d');
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            this._gestureDots = [];
+            var gap = w / 4;
+            for (var r = 0; r < 3; r++) {
+                for (var c = 0; c < 3; c++) {
+                    this._gestureDots.push({
+                        n: r * 3 + c + 1,
+                        x: gap * (c + 1),
+                        y: gap * (r + 1),
+                    });
+                }
+            }
+            this._drawGestureDots();
+        },
+
+        _drawGestureDots: function() {
+            var canvas = this.$refs.gestureCanvas;
+            if (!canvas) return;
+            var ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
+            var dots = this._gestureDots;
+            if (!dots) return;
+
+            // draw lines
+            if (this.gesturePoints && this.gesturePoints.length >= 2) {
+                ctx.strokeStyle = '#1677ff';
+                ctx.lineWidth = 3;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.beginPath();
+                for (var i = 0; i < this.gesturePoints.length; i++) {
+                    var pt = dots[this.gesturePoints[i] - 1];
+                    if (i === 0) ctx.moveTo(pt.x, pt.y);
+                    else ctx.lineTo(pt.x, pt.y);
+                }
+                ctx.stroke();
+            }
+
+            // draw dots
+            for (var j = 0; j < dots.length; j++) {
+                var d = dots[j];
+                var active = this.gesturePoints && this.gesturePoints.indexOf(d.n) >= 0;
+                ctx.beginPath();
+                ctx.arc(d.x, d.y, active ? 12 : 8, 0, Math.PI * 2);
+                ctx.fillStyle = active ? '#1677ff' : 'transparent';
+                ctx.fill();
+                ctx.strokeStyle = active ? '#1677ff' : '#ccc';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+        },
+
+        _hitDot: function(cx, cy) {
+            if (!this._gestureDots) return -1;
+            for (var i = 0; i < this._gestureDots.length; i++) {
+                var d = this._gestureDots[i];
+                var dist = Math.sqrt((cx - d.x) * (cx - d.x) + (cy - d.y) * (cy - d.y));
+                if (dist < 22) return d.n;
+            }
+            return -1;
+        },
+
+        gestureStart: function(e) {
+            this.gestureDrawing = true;
+            this.gesturePoints = [];
+            this.gestureCode = '';
+            var canvas = this.$refs.gestureCanvas;
+            if (!canvas) return;
+            var rect = canvas.getBoundingClientRect();
+            var cx = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+            var cy = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+            var n = this._hitDot(cx, cy);
+            if (n > 0) {
+                this.gesturePoints.push(n);
+                this.gestureCode = String(n);
+                this._drawGestureDots();
+            }
+        },
+
+        gestureMove: function(e) {
+            if (!this.gestureDrawing) return;
+            var canvas = this.$refs.gestureCanvas;
+            if (!canvas) return;
+            var rect = canvas.getBoundingClientRect();
+            var cx = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+            var cy = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+            var n = this._hitDot(cx, cy);
+            if (n > 0 && this.gesturePoints.indexOf(n) < 0) {
+                this.gesturePoints.push(n);
+                this.gestureCode = this.gesturePoints.join('');
+                this._drawGestureDots();
+            }
+        },
+
+        gestureEnd: function() {
+            this.gestureDrawing = false;
+        },
+
+        gestureReset: function() {
+            this.gesturePoints = [];
+            this.gestureCode = '';
+            this._drawGestureDots();
+        },
+
+        doGestureSign: async function() {
+            var self = this;
+            if (!self.gestureCode) return self.toast('请绘制手势图案');
+            self.scanLogs = [];
+            self.signing = true;
+            self.addLog('系统', 'info', '手势签到 ' + self.gestureCode);
+
+            try {
+                var selfData = await self.api('POST', '/sign', {
+                    active_id: self.currentTask ? self.currentTask.active_id : '',
+                    course_id: self.currentTask ? self.currentCourseId : '',
+                    class_id: self.currentTask ? self.currentClassId : '',
+                    sign_type: 'gesture',
+                    gesture_code: self.gestureCode,
+                });
+                if (selfData.ok) self.addLog(self.user.nickname || '自己', 'success');
+                else self.addLog(self.user.nickname || '自己', 'fail');
+            } catch (e) { self.addLog('自己', 'fail'); }
+
+            // 好友代签
+            if (self.selectedFriends.length > 0) {
+                for (var i = 0; i < self.selectedFriends.length; i++) {
+                    var fid = self.selectedFriends[i];
+                    var friend = self.friends.find(function(f) { return f.id === fid; });
+                    var name = friend ? friend.nickname : ('好友#' + fid);
+                    try {
+                        var data = await self.api('POST', '/sign', {
+                            active_id: self.currentTask ? self.currentTask.active_id : '',
+                            course_id: self.currentTask ? self.currentCourseId : '',
+                            class_id: self.currentTask ? self.currentClassId : '',
+                            sign_type: 'gesture',
+                            gesture_code: self.gestureCode,
+                        });
+                        if (data.ok) self.addLog(name, 'success');
+                        else self.addLog(name, 'fail');
+                    } catch (e) { self.addLog(name, 'fail'); }
+                }
+            }
+
+            self.signing = false;
+            self.addLog('系统', 'info', '签到完成');
+            if (self.currentTask) setTimeout(function() { self.loadTasks(); }, 1500);
+        },
+
+        doCodeSign: async function() {
+            var self = this;
+            var code = self.signCodeInput.trim();
+            if (!code) return self.toast('请输入签到码');
+            self.scanLogs = [];
+            self.signing = true;
+            self.addLog('系统', 'info', '开始签到码签到...');
+
+            // 为自己签到
+            try {
+                var selfData = await self.api('POST', '/sign', {
+                    active_id: self.currentTask ? self.currentTask.active_id : '',
+                    course_id: self.currentTask ? self.currentCourseId : '',
+                    class_id: self.currentTask ? self.currentClassId : '',
+                    sign_type: 'code',
+                    sign_code: code,
+                });
+                if (selfData.ok) {
+                    self.addLog(self.user.nickname || '自己', 'success');
+                } else {
+                    self.addLog(self.user.nickname || '自己', 'fail');
+                }
+            } catch (e) {
+                self.addLog('自己', 'fail');
+            }
+
+            // 为好友代签
+            if (self.selectedFriends.length > 0) {
+                for (var i = 0; i < self.selectedFriends.length; i++) {
+                    var fid = self.selectedFriends[i];
+                    var friend = self.friends.find(function(f) { return f.id === fid; });
+                    var name = friend ? friend.nickname : ('好友#' + fid);
+                    try {
+                        var data = await self.api('POST', '/sign', {
+                            active_id: self.currentTask ? self.currentTask.active_id : '',
+                            course_id: self.currentTask ? self.currentCourseId : '',
+                            class_id: self.currentTask ? self.currentClassId : '',
+                            sign_type: 'code',
+                            sign_code: code,
+                        });
+                        if (data.ok) {
+                            self.addLog(name, 'success');
+                        } else {
+                            self.addLog(name, 'fail');
+                        }
+                    } catch (e) {
+                        self.addLog(name, 'fail');
+                    }
+                }
+            }
+
+            self.signing = false;
+            self.addLog('系统', 'info', '签到完成');
+
             if (self.currentTask) {
                 setTimeout(function() { self.loadTasks(); }, 1500);
             }

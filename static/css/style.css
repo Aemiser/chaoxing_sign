@@ -352,8 +352,12 @@ body {
 .badge-signed {
     background: var(--success) !important;
     color: #fff !important;
-    opacity: 0.7;
     cursor: default;
+}
+
+.badge-proxy {
+    background: var(--warning) !important;
+    color: #fff !important;
 }
 
 /* ============================================================
@@ -1040,6 +1044,51 @@ body {
 
 .toast.show {
     opacity: 1;
+}
+
+/* ============================================================
+   Gesture Pattern Lock (canvas-based)
+   ============================================================ */
+
+.gesture-area {
+    margin: 8px 16px;
+    background: #fff;
+    border-radius: 12px;
+    padding: 16px;
+    text-align: center;
+}
+
+.gesture-hint {
+    font-size: 13px;
+    color: #888;
+    margin-bottom: 12px;
+}
+
+.gesture-canvas-main {
+    display: block;
+    width: 260px;
+    height: 260px;
+    margin: 0 auto;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    border-radius: 12px;
+    background: #fafafa;
+}
+
+.gesture-code-display {
+    margin-top: 12px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.gesture-code-wait {
+    color: #ccc;
+    font-weight: 400;
 }
 
 /* ============================================================

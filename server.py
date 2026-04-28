@@ -469,6 +469,8 @@ async def api_sign(
     class_id: str = Query(...),
     sign_type: str = Query(...),
     enc: str = Query(""),
+    sign_code: str = Query(""),
+    gesture_code: str = Query(""),
     longitude: str = Query(""),
     latitude: str = Query(""),
     location_name: str = Query(""),
@@ -500,6 +502,10 @@ async def api_sign(
         kwargs["longitude"] = longitude or default_location["longitude"]
         kwargs["latitude"] = latitude or default_location["latitude"]
         kwargs["location_name"] = location_name or default_location["name"]
+    if st == SignType.CODE and sign_code:
+        kwargs["code"] = sign_code
+    if st == SignType.GESTURE and gesture_code:
+        kwargs["gesture"] = gesture_code
 
     ok = c.sign(task, **kwargs)
     return {"ok": ok, "message": "签到成功" if ok else "签到失败"}

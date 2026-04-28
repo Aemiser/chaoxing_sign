@@ -30,6 +30,7 @@ ACTIVE_TASK_URL = f"{MOBILE_API}/ppt/activeAPI/taskactivelist"
 # 签到接口
 PRESIGN_URL = f"{MOBILE_API}/newsign/preSign"
 STUSIGN_URL = f"{MOBILE_API}/pptSign/stuSignajax"
+SIGN_IN_URL = f"{MOBILE_API}/widget/sign/pcStuSignController/signIn"
 # 旧版备用
 QRCODE_SIGN_URL = f"{MOBILE_API}/ppt/activeAPI/qrcodeSign"
 LOCATION_SIGN_URL = f"{MOBILE_API}/ppt/activeAPI/locationSign"
@@ -386,9 +387,9 @@ class ChaoxingClient:
 
     # --------- sign-in methods ----------
     # 原项目逻辑:
-    #   普通/拍照/手势/签到码 → 直接调用签到 API（无需额外数据）
+    #   普通/拍照/手势/签到码 → 直接调用签到 API
     #   位置签到              → 携带自定义经纬度
-    #   二维码签到            → 携带 enc 参数（支持四种方式获取）
+    #   二维码签到            → 携带 enc 参数
 
     def _sign_normal(self, task: SignTask, **kwargs) -> bool:
         """普通签到 — 直接提交，无需额外操作"""
@@ -399,12 +400,20 @@ class ChaoxingClient:
         return self._sign_normal(task, **kwargs)
 
     def _sign_gesture(self, task: SignTask, **kwargs) -> bool:
-        """手势签到 — 直接签到，无需知道具体手势图案"""
-        return self._do_sign_get(task, self._base_params(task))
+        """手势签到 — 其中 gesture 为 [1-9] 连线顺序，如 1235789"""
+        gesture = kwargs.get("gesture", "")
+        params = self._base_params(task)
+        if gesture:
+            params["signCode"] = gesture
+        return self._do_sign_get(task, params)
 
     def _sign_code(self, task: SignTask, **kwargs) -> bool:
-        """签到码签到 — 直接签到，无需知道签到码内容"""
-        return self._do_sign_get(task, self._base_params(task))
+        """签到码签到 — 优先使用 PC 端点 signIn"""
+        code = kwargs.get("code", "")
+        params = self._base_params(task)
+        if code:
+            params["signCode"] = code
+        return self._do_sign_get(task, params)
 
     def _sign_location(self, task: SignTask, **kwargs) -> bool:
         """位置签到 — 携带自定义经纬度（默认北京）"""
@@ -454,7 +463,7 @@ class ChaoxingClient:
 
         if text == "success":
             return True
-        if "成功" in text or "重复" in text:
+        if "成功" in text or "重复" in text or "已签到" in text:
             return True
 
         # 可能返回 JSON
