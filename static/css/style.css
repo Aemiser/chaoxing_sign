@@ -349,6 +349,13 @@ body {
     color: white;
 }
 
+.badge-signed {
+    background: var(--success) !important;
+    color: #fff !important;
+    opacity: 0.7;
+    cursor: default;
+}
+
 /* ============================================================
    Empty State
    ============================================================ */
@@ -1101,6 +1108,26 @@ body {
 }
 
 /* ---------- 好友多选列表 ---------- */
+.scan-friend-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px 8px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text);
+    border-bottom: 0.5px solid #f0f0f0;
+}
+
+.scan-friend-refresh {
+    font-size: 12px;
+    color: var(--primary);
+    cursor: pointer;
+    font-weight: 400;
+}
+
+.scan-friend-refresh:active { opacity: 0.7; }
+
 .scan-friend-list {
     background: #fff;
     margin: 8px 16px;

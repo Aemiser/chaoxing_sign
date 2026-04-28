@@ -232,7 +232,7 @@ class ChaoxingClient:
     # 获取签到活动列表
     # ================================================================
 
-    def get_sign_tasks(self, course: Course) -> list[SignTask]:
+    def get_sign_tasks(self, course: Course, check_signed: bool = False) -> list[SignTask]:
         try:
             resp = self.session.get(ACTIVE_TASK_URL, params={
                 "courseId": course.course_id,
@@ -248,7 +248,6 @@ class ChaoxingClient:
         tasks: list[SignTask] = []
 
         for item in data.get("activeList", []):
-            # type=2 是签到（可能是 int 或 str）
             try:
                 atype = int(item.get("activeType", 0))
             except (ValueError, TypeError):
@@ -260,7 +259,6 @@ class ChaoxingClient:
             status = "active" if item.get("status") == 1 else "ended"
             raw_url = item.get("url", "")
 
-            # 从 URL 中提取 activePrimaryId
             active_id = str(item.get("id", ""))
             if not active_id and "activePrimaryId=" in raw_url:
                 m = re.search(r"activePrimaryId=(\d+)", raw_url)
@@ -279,9 +277,38 @@ class ChaoxingClient:
                 end_time=str(item.get("endTime", "")),
                 raw_url=raw_url,
             )
+
+            # 仅在需要时检测已签到状态（避免不必要请求）
+            if check_signed and task.status == "active" and task.active_id:
+                task.signed = self.check_signed(task.active_id, task.course_id, task.class_id)
+
             tasks.append(task)
 
         return tasks
+
+
+    def check_signed(self, active_id: str, course_id: str, class_id: str) -> bool:
+        """检测某个签到活动当前用户是否已完成签到"""
+        try:
+            resp = self.session.get(
+                "https://mobilelearn.chaoxing.com/widget/sign/pcStuSignController/preSign",
+                params={
+                    "activeId": active_id,
+                    "classId": class_id,
+                    "courseId": course_id,
+                    "fid": "0",
+                },
+                timeout=10,
+            )
+            text = resp.text
+            if "签到成功" in text or "已签到" in text or "您已签到" in text:
+                return True
+            data = safe_json_loads(text)
+            if data:
+                return data.get("status") is True or "success" in str(data).lower()
+        except Exception:
+            pass
+        return False
 
     # ================================================================
     # 签到详情分析

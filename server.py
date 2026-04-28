@@ -270,7 +270,7 @@ async def api_friends(
     """获取好友列表"""
     require_db()
     get_client(token)
-    db: Session = next(db_module.get_db())
+    db: Session = db_module.get_db()
     try:
         friendships = (
             db.query(Friendship, User)
@@ -301,7 +301,7 @@ async def api_add_friend(
     """添加好友"""
     require_db()
     get_client(token)
-    db: Session = next(db_module.get_db())
+    db: Session = db_module.get_db()
     try:
         target_account = body.target_account.strip()
         if not target_account:
@@ -349,7 +349,7 @@ async def api_delete_friend(
     """删除好友"""
     require_db()
     get_client(token)
-    db: Session = next(db_module.get_db())
+    db: Session = db_module.get_db()
     try:
         db.query(Friendship).filter(
             Friendship.user_id == user_id, Friendship.friend_id == friend_id
@@ -391,7 +391,7 @@ async def api_tasks(course_id: str, class_id: str, token: str = Query(...)):
     c = get_client(token)
 
     course = Course(course_id=course_id, class_id=class_id, name="")
-    tasks = c.get_sign_tasks(course)
+    tasks = c.get_sign_tasks(course, check_signed=True)
 
     type_name = {
         SignType.NORMAL: "normal", SignType.PHOTO: "photo",
@@ -408,6 +408,7 @@ async def api_tasks(course_id: str, class_id: str, token: str = Query(...)):
                 "sign_type": type_name.get(t.sign_type, "normal"),
                 "sign_type_label": t.sign_type.value,
                 "status": t.status,
+                "signed": getattr(t, "signed", False),
                 "start_time": t.start_time,
                 "end_time": t.end_time,
                 "course_name": t.course_name,
@@ -429,7 +430,7 @@ async def api_active_courses(token: str = Query(...)):
     result = []
     for co in courses:
         try:
-            tasks = c.get_sign_tasks(co)
+            tasks = c.get_sign_tasks(co, check_signed=False)
             active = [t for t in tasks if t.status == "active"]
             if active:
                 result.append({
@@ -557,7 +558,7 @@ async def api_checkin_qrcode(
 
     # 为好友代签（使用好友自己的超星会话）
     if body.proxy_friend_ids:
-        db: Session = next(db_module.get_db())
+        db: Session = db_module.get_db()
         try:
             for fid in body.proxy_friend_ids:
                 friendship = (

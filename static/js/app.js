@@ -88,8 +88,9 @@ const app = createApp({
     watch: {
         currentPage(val) {
             if (this.cameraActive) this.stopScanCamera();
-            if (val === 'home') this.loadActiveCourses();
+            if (val === 'home') { this.loadActiveCourses(); this.loadFriends(); }
             if (val === 'courses') this.loadCourses();
+            if (val === 'scan') this.loadFriends();
             if (val === 'friends') this.loadFriends();
             if (val === 'tasks') { var self = this; nextTick(function() { self.loadTasks(); }); }
             if (val === 'login') this.loginPassword = '';
@@ -182,6 +183,8 @@ const app = createApp({
                 }
                 self.currentPage = 'home';
                 self.toast('登录成功');
+                // 登录后立即预取数据（不等页面切换）
+                if (self.jwt) { self.loadFriends(); self.loadActiveCourses(); }
             } catch (e) {} finally { self.loggingIn = false; }
         },
 
@@ -195,7 +198,7 @@ const app = createApp({
             self.user = { id: 0, supernova_account: '', nickname: '' };
             self.courses = [];
             self.friends = [];
-            ['cx_token', 'cx_jwt', 'cx_name', 'cx_user'].forEach(function(k) { localStorage.removeItem(k); });
+            ['cx_token', 'cx_jwt', 'cx_name', 'cx_user', 'cx_friends'].forEach(function(k) { localStorage.removeItem(k); });
             self.currentPage = 'login';
         },
 
@@ -441,11 +444,19 @@ const app = createApp({
         loadFriends: async function() {
             var self = this;
             if (!self.jwt) return;
+
+            // 先从缓存恢复，保证秒显
+            var cached = localStorage.getItem('cx_friends');
+            if (cached) {
+                try { self.friends = JSON.parse(cached); } catch (e) {}
+            }
+
             self.loadingFriends = true;
             try {
                 var data = await self.apiAuth('GET', '/friends');
                 self.friends = data.friends || [];
-            } catch (e) { self.friends = []; }
+                localStorage.setItem('cx_friends', JSON.stringify(self.friends));
+            } catch (e) { self.friends = self.friends.length ? self.friends : []; }
             finally { self.loadingFriends = false; }
         },
 

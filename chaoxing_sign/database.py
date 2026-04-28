@@ -15,17 +15,20 @@ def init_db(config: dict):
         f"@{db_cfg.get('host', 'localhost')}:{db_cfg.get('port', 3306)}"
         f"/{db_cfg.get('database', 'chaoxing_sign')}?charset=utf8mb4"
     )
-    engine = create_engine(url, pool_pre_ping=True, pool_recycle=3600)
-    SessionLocal = sessionmaker(bind=engine)
+    engine = create_engine(
+        url,
+        pool_size=10,
+        max_overflow=20,
+        pool_pre_ping=False,
+        pool_recycle=3600,
+        connect_args={"connect_timeout": 5},
+    )
+    SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
     return engine
 
 
 def get_db() -> Session:
-    """FastAPI 依赖注入：获取数据库会话"""
+    """获取数据库会话（从连接池复用连接）"""
     if SessionLocal is None:
         raise RuntimeError("Database not initialized")
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+    return SessionLocal()

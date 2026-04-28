@@ -59,6 +59,7 @@ class SignTask:
     class_id: str = ""
     sign_type: SignType = SignType.NORMAL
     status: str = ""         # "active" / "ended"
+    signed: bool = False     # 当前用户是否已签到
     start_time: str = ""
     end_time: str = ""
     raw_url: str = ""

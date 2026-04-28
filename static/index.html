@@ -123,7 +123,8 @@
                         <span class="task-name">{{ t.name }}</span>
                         <span class="task-time">{{ t.start_time }}</span>
                     </div>
-                    <button class="btn btn-small btn-badge"
+                    <button v-if="t.signed" class="btn btn-small btn-badge badge-signed" disabled>已签</button>
+                    <button v-else class="btn btn-small btn-badge"
                             :class="'badge-' + t.sign_type"
                             @click="startSign(t)">{{ typeLabels[t.sign_type] }}</button>
                 </div>
@@ -163,7 +164,12 @@
 
             <!-- 好友多选列表 -->
             <div class="scan-friend-list">
-                <div v-if="friends.length === 0" class="scan-friend-empty">
+                <div class="scan-friend-header">
+                    <span>选择代签好友</span>
+                    <span class="scan-friend-refresh" @click="loadFriends(); toast('刷新中...')">&#x21BB; 刷新</span>
+                </div>
+                <div v-if="loadingFriends" class="loading"><span class="spinner"></span></div>
+                <div v-else-if="friends.length === 0" class="scan-friend-empty">
                     <p>暂无好友，请先在「我的」页面添加好友</p>
                 </div>
                 <div v-for="f in friends" :key="f.id" class="scan-friend-item"
