@@ -383,7 +383,6 @@ body {
    ============================================================ */
 
 .modal {
-    display: none;
     position: fixed;
     top: 0;
     left: 0;
@@ -781,6 +780,22 @@ body {
 .action-desc {
     font-size: 11px;
     color: var(--gray);
+}
+
+.home-active-section {
+    margin-top: 8px;
+}
+
+.home-badge {
+    background: var(--success);
+    color: #fff;
+    font-size: 12px;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-weight: 500;
+    flex-shrink: 0;
+    margin-left: auto;
+    margin-right: 8px;
 }
 
 /* ============================================================

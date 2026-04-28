@@ -129,13 +129,16 @@ class ChaoxingClient:
         return False
 
     def _fetch_user_info(self):
+        # 先尝试从 cookie 中获取 uid
+        self._check_login_cookies()
+        # 再尝试从 SSO API 获取更完整的用户信息
         try:
             resp = self.session.get(USER_INFO_URL, timeout=10)
             data = resp.json()
             if "msg" in data:
                 msg = data["msg"]
                 self._uid = msg.get("uid", self._uid)
-                self._name = msg.get("name", "")
+                self._name = msg.get("name", self._name or "")
         except Exception as e:
             log.debug("获取用户信息失败: %s", e)
 
@@ -448,13 +451,13 @@ class ChaoxingClient:
         try:
             resp = self.session.get("https://i.chaoxing.com/base", timeout=10)
             soup = BeautifulSoup(resp.text, "lxml")
-            el = soup.select_one(".user-name, .username")
+            el = soup.select_one(".user-con h1")
             if el:
                 info.name = el.get_text(strip=True)
-            el = soup.select_one(".school, .org")
+            el = soup.select_one(".unit-name h1")
             if el:
                 info.school = el.get_text(strip=True)
-            el = soup.select_one(".avatar img")
+            el = soup.select_one(".user-con img")
             if el:
                 info.avatar = el.get("src", "")
         except Exception:

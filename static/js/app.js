@@ -17,8 +17,14 @@ const app = createApp({
             loginPassword: '',
             loggingIn: false,
 
+            // 加载状态
+            loadingActive: false,
+            loadingCourses: false,
+            loadingFriends: false,
+
             // 课程
             courses: [],
+            activeCourses: [],
             courseSearch: '',
             courseIcons: ['📖', '📕', '📗', '📘', '📙', '📚', '📓', '📒'],
 
@@ -82,9 +88,10 @@ const app = createApp({
     watch: {
         currentPage(val) {
             if (this.cameraActive) this.stopScanCamera();
+            if (val === 'home') this.loadActiveCourses();
             if (val === 'courses') this.loadCourses();
             if (val === 'friends') this.loadFriends();
-            if (val === 'tasks') nextTick(function() { app._instance.proxy.loadTasks(); });
+            if (val === 'tasks') { var self = this; nextTick(function() { self.loadTasks(); }); }
             if (val === 'login') this.loginPassword = '';
         },
     },
@@ -192,13 +199,25 @@ const app = createApp({
             self.currentPage = 'login';
         },
 
-        // 课程
+        // 有签到活动的课程
+        loadActiveCourses: async function() {
+            var self = this;
+            self.loadingActive = true;
+            try {
+                var data = await self.api('GET', '/active-courses');
+                self.activeCourses = data.courses || [];
+            } catch (e) { self.activeCourses = []; }
+            finally { self.loadingActive = false; }
+        },
+
         loadCourses: async function() {
             var self = this;
+            self.loadingCourses = true;
             try {
                 var data = await self.api('GET', '/courses');
                 self.courses = data.courses || [];
             } catch (e) { self.courses = []; }
+            finally { self.loadingCourses = false; }
         },
 
         openTasks: function(course) {
@@ -422,10 +441,12 @@ const app = createApp({
         loadFriends: async function() {
             var self = this;
             if (!self.jwt) return;
+            self.loadingFriends = true;
             try {
                 var data = await self.apiAuth('GET', '/friends');
                 self.friends = data.friends || [];
             } catch (e) { self.friends = []; }
+            finally { self.loadingFriends = false; }
         },
 
         doAddFriend: async function() {
@@ -563,6 +584,7 @@ const app = createApp({
                 self.uid = data.uid;
                 self.name = data.name;
                 self.currentPage = 'home';
+                self.loadActiveCourses();
             } catch (e) {
                 self.token = '';
                 localStorage.removeItem('cx_token');

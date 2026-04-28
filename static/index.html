@@ -45,11 +45,6 @@
         </div>
         <div class="page-content">
             <div class="action-cards">
-                <div class="action-card" @click="currentPage = 'scan'">
-                    <span class="action-icon">&#x1F4F7;</span>
-                    <span class="action-label">扫二维码签到</span>
-                    <span class="action-desc">扫码完成签到</span>
-                </div>
                 <div class="action-card" @click="currentPage = 'courses'">
                     <span class="action-icon">&#x1F4DA;</span>
                     <span class="action-label">我的课程</span>
@@ -60,6 +55,23 @@
                     <span class="action-label">好友管理</span>
                     <span class="action-desc" v-if="friends.length">共 {{ friends.length }} 位好友</span>
                     <span class="action-desc" v-else>添加好友</span>
+                </div>
+            </div>
+
+            <!-- 有签到活动的课程 -->
+            <div class="home-active-section">
+                <div class="loading" v-if="loadingActive"><span class="spinner"></span></div>
+                <div v-else-if="activeCourses.length > 0">
+                <div class="section-title">有签到活动的课程</div>
+                <div v-for="co in activeCourses" :key="co.course_id" class="course-item"
+                     @click="openTasks(co)">
+                    <span class="course-icon">{{ courseIcons[co.course_id.charCodeAt(0) % 8] }}</span>
+                    <div class="course-info">
+                        <span class="course-name">{{ co.name }}</span>
+                        <span class="course-teacher" v-if="co.teacher">{{ co.teacher }}</span>
+                    </div>
+                    <span class="home-badge">{{ co.active_count }} 个活动</span>
+                    <span class="course-arrow">&#x203A;</span>
                 </div>
             </div>
         </div>
@@ -76,7 +88,8 @@
             <input type="text" v-model="courseSearch" class="input" placeholder="搜索课程" @input="filterCourses">
         </div>
         <div class="page-content">
-            <div v-if="filteredCourses.length === 0" class="empty-state">
+            <div class="loading" v-if="loadingCourses"><span class="spinner"></span></div>
+            <div v-else-if="filteredCourses.length === 0" class="empty-state">
                 <p>暂无课程</p>
             </div>
             <div v-for="co in filteredCourses" :key="co.course_id" class="course-item"
@@ -99,7 +112,7 @@
             <span></span>
         </nav>
         <div class="page-content">
-            <div v-if="loadingTasks" class="empty-state"><p>加载中...</p></div>
+            <div v-if="loadingTasks" class="loading"><span class="spinner"></span></div>
             <div v-else-if="activeTasks.length === 0 && endedTasks.length === 0" class="empty-state">
                 <p>当前没有签到任务</p>
             </div>
@@ -209,7 +222,8 @@
             <span class="navbar-right" @click="showAddFriendModal = true">添加好友</span>
         </nav>
         <div class="page-content">
-            <div v-if="friends.length === 0" class="empty-state">
+            <div class="loading" v-if="loadingFriends"><span class="spinner"></span></div>
+            <div v-else-if="friends.length === 0" class="empty-state">
                 <p>暂无好友，快去添加吧</p>
             </div>
             <div v-for="f in friends" :key="f.id" class="friend-card">

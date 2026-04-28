@@ -7,6 +7,7 @@ import re
 import logging
 from pathlib import Path
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Query, Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -22,7 +23,24 @@ from chaoxing_sign.auth import create_jwt, get_current_user_id
 log = logging.getLogger("server")
 logging.basicConfig(level=logging.INFO)
 
-app = FastAPI(title="超星学习通签到", version="3.0")
+@asynccontextmanager
+async def lifespan(application: FastAPI):
+    # 启动
+    global db_available
+    try:
+        db_module.init_db(cfg)
+        Base.metadata.create_all(bind=db_module.engine)
+        test_db = db_module.SessionLocal()
+        test_db.close()
+        db_available = True
+        log.info("数据库连接成功，好友/代签功能已启用")
+    except Exception as e:
+        db_available = False
+        log.warning("数据库不可用，好友/代签功能已禁用: %s", e)
+    yield
+
+
+app = FastAPI(title="超星学习通签到", version="3.0", lifespan=lifespan)
 
 # 静态文件
 static_dir = Path(__file__).parent / "static"
@@ -44,25 +62,6 @@ if config_path.exists():
         default_location.update(cfg.get("location", {}))
     except Exception:
         pass
-
-
-# ================================================================
-# 启动事件
-# ================================================================
-
-@app.on_event("startup")
-async def startup():
-    global db_available
-    try:
-        db_module.init_db(cfg)
-        Base.metadata.create_all(bind=db_module.engine)
-        test_db = db_module.SessionLocal()
-        test_db.close()
-        db_available = True
-        log.info("数据库连接成功，好友/代签功能已启用")
-    except Exception as e:
-        db_available = False
-        log.warning("数据库不可用，好友/代签功能已禁用: %s", e)
 
 
 # ================================================================
@@ -107,6 +106,30 @@ def get_or_create_user(db: Session, supernova_account: str, nickname: str = "") 
 def require_db():
     if not db_available:
         raise HTTPException(503, "数据库服务不可用，请稍后重试")
+
+
+def download_avatar(uid: str, url: str) -> str:
+    """下载用户头像到 static/images/avatars/ 目录，返回本地路由"""
+    import requests as req
+    avatars_dir = static_dir / "images" / "avatars"
+    avatars_dir.mkdir(parents=True, exist_ok=True)
+    ext = ".jpg"
+    if url:
+        # 尝试从 URL 推断扩展名
+        base = url.split("?")[0]
+        if base.endswith(".png"):
+            ext = ".png"
+        elif base.endswith(".gif"):
+            ext = ".gif"
+    filepath = avatars_dir / f"{uid}{ext}"
+    try:
+        resp = req.get(url, timeout=15)
+        if resp.ok:
+            filepath.write_bytes(resp.content)
+            return f"/static/images/avatars/{uid}{ext}"
+    except Exception as e:
+        log.warning("下载头像失败: %s", e)
+    return ""
 
 
 def save_user_session(db: Session, user_id: int, client: ChaoxingClient):
@@ -177,20 +200,48 @@ async def api_login(phone: str = Query(...), password: str = Query(...)):
 
     if db_available:
         try:
+            uid = client.uid
+            if not uid:
+                log.error("登录成功但 uid 为空，跳过入库: phone=%s", phone)
+                return result
+
+            # 获取账户详细信息（学校、头像）
+            account_info = client.get_account_info()
+            school = account_info.school or ""
+            avatar_url = account_info.avatar or ""
+            nickname = account_info.name or client.name or ""
+            log.info("账户信息: nickname=%s school=%s avatar=%s", nickname, school, avatar_url)
+
+            # 下载头像到本地
+            local_avatar = ""
+            if avatar_url and avatar_url.startswith("http"):
+                local_avatar = download_avatar(uid, avatar_url)
+
             db = db_module.SessionLocal()
-            user = get_or_create_user(db, client.uid, client.name or "")
+            user = get_or_create_user(db, uid, nickname)
+            user.username = phone
+            if school:
+                user.school = school
+            if local_avatar:
+                user.avatar = local_avatar
+            db.commit()
+            log.info("用户入库成功: id=%s uid=%s nickname=%s avatar=%s", user.id, uid, user.nickname, user.avatar)
+
             # 持久化超星会话到数据库
             save_user_session(db, user.id, client)
+
             jwt_token = create_jwt(user.id)
             result["jwt"] = jwt_token
             result["user"] = {
                 "id": user.id,
                 "supernova_account": user.supernova_account,
                 "nickname": user.nickname,
+                "avatar": user.avatar,
+                "school": user.school,
             }
             db.close()
         except Exception as e:
-            log.error("自动注册用户失败: %s", e)
+            log.error("自动注册用户失败: %s, uid=%s, name=%s", e, client.uid, client.name)
 
     return result
 
@@ -256,12 +307,12 @@ async def api_add_friend(
         if not target_account:
             raise HTTPException(400, "请输入账号")
 
-        target = db.query(User).filter(User.supernova_account == target_account).first()
+        target = db.query(User).filter(User.username == target_account).first()
         if target is None:
             raise HTTPException(400, detail="该账号不存在")
 
         current_user = db.query(User).filter(User.id == user_id).first()
-        if current_user and current_user.supernova_account == target_account:
+        if current_user and current_user.username == target_account:
             raise HTTPException(400, detail="不能添加自己为好友")
 
         existing = (
@@ -281,6 +332,7 @@ async def api_add_friend(
             "friend": {
                 "id": target.id,
                 "supernova_account": target.supernova_account,
+                "username":target.username,
                 "nickname": target.nickname,
             },
         }
@@ -366,6 +418,45 @@ async def api_tasks(course_id: str, class_id: str, token: str = Query(...)):
 
 
 # ================================================================
+# 有签到活动的课程
+# ================================================================
+
+@app.get("/api/active-courses")
+async def api_active_courses(token: str = Query(...)):
+    """返回有活跃签到任务的课程列表，每个课程附带活跃任务数"""
+    c = get_client(token)
+    courses = c.get_courses()
+    result = []
+    for co in courses:
+        try:
+            tasks = c.get_sign_tasks(co)
+            active = [t for t in tasks if t.status == "active"]
+            if active:
+                result.append({
+                    "course_id": co.course_id,
+                    "class_id": co.class_id,
+                    "name": co.name,
+                    "teacher": co.teacher,
+                    "cover_url": co.cover_url,
+                    "active_count": len(active),
+                    "tasks": [
+                        {
+                            "active_id": t.active_id,
+                            "name": t.name,
+                            "sign_type": t.sign_type.value,
+                            "sign_type_label": t.sign_type.value,
+                            "status": t.status,
+                            "start_time": t.start_time,
+                        }
+                        for t in active
+                    ],
+                })
+        except Exception:
+            continue
+    return {"ok": True, "courses": result}
+
+
+# ================================================================
 # 签到
 # ================================================================
 
@@ -427,22 +518,34 @@ async def api_checkin_qrcode(
     require_db()
     c = get_client(token)
 
+    # 从二维码 URL 中提取所有参数
+    qr_data = body.qr_data
+
     enc = ""
-    m = re.search(r"enc=([a-zA-Z0-9_\-]+)", body.qr_data)
+    m = re.search(r"enc=([a-zA-Z0-9_\-]+)", qr_data)
+    if m:
+        enc = m.group(1)
+
+    active_id = body.active_id or ""
+    course_id = body.course_id or ""
+    class_id = body.class_id or ""
+
+    # 从二维码 URL 中提取 enc
+    m = re.search(r"enc=([A-Fa-f0-9]+)", qr_data)
     if m:
         enc = m.group(1)
     else:
-        enc = body.qr_data.strip()
+        enc = qr_data.strip()
 
     if not enc:
         raise HTTPException(400, "无法解析二维码内容，缺少 enc 参数")
 
     task = SignTask(
-        active_id=body.active_id or "",
+        active_id=active_id,
         name="",
         course_name="",
-        course_id=body.course_id or "",
-        class_id=body.class_id or "",
+        course_id=course_id,
+        class_id=class_id,
         sign_type=SignType.QRCODE,
     )
 

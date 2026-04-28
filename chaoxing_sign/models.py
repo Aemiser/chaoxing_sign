@@ -13,7 +13,10 @@ class User(Base):
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     supernova_account = Column(String(64), unique=True, nullable=False, index=True)
+    username = Column(String(64), default="")
     nickname = Column(String(128), default="")
+    avatar = Column(String(512), default="")
+    school = Column(String(255), default="")
     location = Column(String(255), default="")
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
