@@ -4,6 +4,7 @@ from __future__ import annotations
 import uuid
 import json
 import re
+import threading
 import logging
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -200,8 +201,39 @@ async def root():
 
 
 # ================================================================
-# 超星登录（修改后：自动注册用户 + 返回 JWT）
+# 超星登录（快速返回 + 后台拉取账户详情）
 # ================================================================
+
+def _bg_enrich_user(client: ChaoxingClient, uid: str, phone: str):
+    """后台线程：拉取账户详情（头像/学校）并入库，避免阻塞登录响应"""
+    def _run():
+        try:
+            account_info = client.get_account_info()
+            school = account_info.school or ""
+            avatar_url = account_info.avatar or ""
+            nickname = account_info.name or client.name or ""
+            log.info("账户信息: nickname=%s school=%s avatar=%s", nickname, school, avatar_url)
+
+            local_avatar = ""
+            if avatar_url and (avatar_url.startswith("http") or avatar_url.startswith("//")):
+                local_avatar = download_avatar(uid, avatar_url)
+
+            db = db_module.SessionLocal()
+            user = get_or_create_user(db, uid, nickname)
+            if school:
+                user.school = school
+            if local_avatar:
+                user.avatar = local_avatar
+            if nickname and user.nickname == user.supernova_account:
+                user.nickname = nickname
+            db.commit()
+            log.info("用户后台更新成功: id=%s uid=%s nickname=%s avatar=%s", user.id, uid, user.nickname, user.avatar)
+            db.close()
+        except Exception as e:
+            log.warning("后台更新用户信息失败: %s", e)
+
+    threading.Thread(target=_run, daemon=True).start()
+
 
 @app.post("/api/login")
 async def api_login(phone: str = Query(...), password: str = Query(...)):
@@ -226,29 +258,13 @@ async def api_login(phone: str = Query(...), password: str = Query(...)):
                 log.error("登录成功但 uid 为空，跳过入库: phone=%s", phone)
                 return result
 
-            # 获取账户详细信息（学校、头像）
-            account_info = client.get_account_info()
-            school = account_info.school or ""
-            avatar_url = account_info.avatar or ""
-            nickname = account_info.name or client.name or ""
-            log.info("账户信息: nickname=%s school=%s avatar=%s", nickname, school, avatar_url)
-
-            # 下载头像到本地
-            local_avatar = ""
-            if avatar_url and (avatar_url.startswith("http") or avatar_url.startswith("//")):
-                local_avatar = download_avatar(uid, avatar_url)
-
             db = db_module.SessionLocal()
-            user = get_or_create_user(db, uid, nickname)
+            # 同步：用已有信息快速入库，保证 JWT 即时可用
+            initial_nickname = client.name or phone
+            user = get_or_create_user(db, uid, initial_nickname)
             user.username = phone
-            if school:
-                user.school = school
-            if local_avatar:
-                user.avatar = local_avatar
             db.commit()
-            log.info("用户入库成功: id=%s uid=%s nickname=%s avatar=%s", user.id, uid, user.nickname, user.avatar)
 
-            # 持久化超星会话到数据库
             save_user_session(db, user.id, client)
 
             jwt_token = create_jwt(user.id)
@@ -257,10 +273,14 @@ async def api_login(phone: str = Query(...), password: str = Query(...)):
                 "id": user.id,
                 "supernova_account": user.supernova_account,
                 "nickname": user.nickname,
-                "avatar": user.avatar,
-                "school": user.school,
+                "avatar": user.avatar or "",
+                "school": user.school or "",
             }
             db.close()
+
+            # 后台：拉取学校/头像等详情（不阻塞登录响应）
+            _bg_enrich_user(client, uid, phone)
+
         except Exception as e:
             log.error("自动注册用户失败: %s, uid=%s, name=%s", e, client.uid, client.name)
 
@@ -493,7 +513,7 @@ def _query_course_active(cookies: dict, course) -> tuple:
 
 @app.get("/api/active-courses")
 async def api_active_courses(token: str = Query(...)):
-    """返回有活跃签到任务的课程列表（5 线程并行查询）"""
+    """返回有活跃签到任务的课程列表（10 线程并行查询）"""
     c = get_client(token)
     courses = c.get_courses()
 

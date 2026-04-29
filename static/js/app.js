@@ -97,7 +97,7 @@ const app = createApp({
         currentPage(val) {
             if (this.cameraActive) this.stopScanCamera();
             if (val !== 'scan' && this._scanMap) { this._scanMap.destroy(); this._scanMap = null; }
-            if (val === 'home') { var self = this; self.loadFriends().then(function() { self.loadActiveCourses(); }); }
+            if (val === 'home') { var self = this; self.loadFriends(); self.loadActiveCourses(); }
             if (val === 'courses') this.loadCourses();
             if (val === 'scan') { this.loadFriends(); if (this.signMode === 'gesture') { var s = this; nextTick(function() { s.gestureInitCanvas(); }); } }
             if (val === 'friends') this.loadFriends();
@@ -192,8 +192,6 @@ const app = createApp({
                 }
                 self.currentPage = 'home';
                 self.toast('登录成功');
-                // 登录后立即预取数据（不等页面切换）
-                if (self.jwt) { self.loadFriends().then(function() { self.loadActiveCourses(); }); }
             } catch (e) {} finally { self.loggingIn = false; }
         },
 
@@ -214,12 +212,14 @@ const app = createApp({
         // 有签到活动的课程
         loadActiveCourses: async function() {
             var self = this;
+            if (self._loadingActive) return;
+            self._loadingActive = true;
             self.loadingActive = true;
             try {
                 var data = await self.api('GET', '/active-courses');
                 self.activeCourses = data.courses || [];
             } catch (e) { self.activeCourses = []; }
-            finally { self.loadingActive = false; }
+            finally { self.loadingActive = false; self._loadingActive = false; }
         },
 
         loadCourses: async function() {
@@ -967,7 +967,6 @@ const app = createApp({
                 self.uid = data.uid;
                 self.name = data.name;
                 self.currentPage = 'home';
-                self.loadActiveCourses();
             } catch (e) {
                 self.token = '';
                 localStorage.removeItem('cx_token');
