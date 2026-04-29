@@ -4,8 +4,6 @@ from __future__ import annotations
 import uuid
 import json
 import re
-import time
-import threading
 import logging
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -65,28 +63,6 @@ if config_path.exists():
         default_location.update(cfg.get("location", {}))
     except Exception:
         pass
-
-# active-courses 缓存: token → {"data": [...], "expires_at": timestamp}
-_active_courses_cache: dict[str, dict] = {}
-_cache_lock = threading.Lock()
-
-
-def _parse_end_time(end_time_str: str) -> float | None:
-    """将结束时间字符串解析为 Unix 时间戳（秒），失败返回 None"""
-    if not end_time_str:
-        return None
-    try:
-        ts = int(end_time_str)
-        return ts / 1000.0 if ts > 1e12 else float(ts)
-    except (ValueError, TypeError):
-        pass
-    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S"):
-        try:
-            import datetime
-            return datetime.datetime.strptime(end_time_str[:19], fmt).timestamp()
-        except Exception:
-            continue
-    return None
 
 
 # ================================================================
@@ -465,7 +441,7 @@ async def api_tasks(course_id: str, class_id: str, token: str = Query(...)):
 
 
 # ================================================================
-# 有签到活动的课程（缓存 + 多线程）
+# 有签到活动的课程（多线程）
 # ================================================================
 
 def _query_course_active(cookies: dict, course) -> tuple:
@@ -517,23 +493,15 @@ def _query_course_active(cookies: dict, course) -> tuple:
 
 @app.get("/api/active-courses")
 async def api_active_courses(token: str = Query(...)):
-    """返回有活跃签到任务的课程列表（5 线程并行 + 缓存至最早任务结束）"""
-    # --- 检查缓存 ---
-    with _cache_lock:
-        entry = _active_courses_cache.get(token)
-        if entry and time.time() < entry["expires_at"]:
-            return {"ok": True, "courses": entry["data"], "cached": True}
-
+    """返回有活跃签到任务的课程列表（5 线程并行查询）"""
     c = get_client(token)
     courses = c.get_courses()
 
     if not courses:
         return {"ok": True, "courses": []}
 
-    # --- 多线程并行查询（最多 5 线程）---
     cookies = c.session.cookies.get_dict()
     result = []
-    earliest_end: float | None = None
 
     with ThreadPoolExecutor(max_workers=5) as pool:
         futures = {pool.submit(_query_course_active, cookies, co): co for co in courses}
@@ -553,24 +521,6 @@ async def api_active_courses(token: str = Query(...)):
                 "active_count": len(active),
                 "tasks": active,
             })
-            # 跟踪最早结束时间作为缓存过期时间
-            for t in active:
-                et = _parse_end_time(t.get("end_time", ""))
-                if et and (earliest_end is None or et < earliest_end):
-                    earliest_end = et
-
-    # --- 写入缓存 ---
-    if earliest_end and earliest_end > time.time():
-        with _cache_lock:
-            _active_courses_cache[token] = {
-                "data": result,
-                "expires_at": earliest_end,
-            }
-    # 清理过期条目
-    with _cache_lock:
-        expired = [k for k, v in _active_courses_cache.items() if time.time() >= v["expires_at"]]
-        for k in expired:
-            del _active_courses_cache[k]
 
     return {"ok": True, "courses": result}
 
