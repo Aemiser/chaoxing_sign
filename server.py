@@ -50,6 +50,10 @@ async def lifespan(application: FastAPI):
 
 app = FastAPI(title="超星学习通签到", version="3.0", lifespan=lifespan)
 
+# 静态文件
+static_dir = Path(__file__).parent / "static"
+app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
 # CORS 中间件 — 允许前端跨域访问
 app.add_middleware(
     CORSMiddleware,

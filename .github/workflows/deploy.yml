@@ -1,0 +1,82 @@
+name: CI/CD Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.11"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-mock
+
+      - name: Run tests
+        run: python -m pytest tests/ -v --tb=short
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: success()
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          # Accept new host key to avoid interactive prompt
+          echo "StrictHostKeyChecking=accept-new" >> ~/.ssh/config
+
+      - name: Rsync files to server
+        run: |
+          rsync -avz --delete \
+            -e "ssh -i ~/.ssh/deploy_key" \
+            --exclude='.git' \
+            --exclude='.gitignore' \
+            --exclude='.github' \
+            --exclude='.idea' \
+            --exclude='.ruff_cache' \
+            --exclude='.venv' \
+            --exclude='__pycache__' \
+            --exclude='*.pyc' \
+            --exclude='config.json' \
+            --exclude='session.json' \
+            --exclude='tests' \
+            --exclude='README.md' \
+            --exclude='ARCHITECTURE.md' \
+            ./ root@${{ secrets.DEPLOY_HOST }}:/opt/chaoxing-sign/
+
+      - name: Install deps & restart service
+        run: |
+          ssh -i ~/.ssh/deploy_key root@${{ secrets.DEPLOY_HOST }} << 'REMOTE_EOF'
+            set -e
+            cd /opt/chaoxing-sign
+            /opt/chaoxing-sign/venv/bin/pip install -r requirements.txt -q
+            systemctl restart chaoxing-sign
+            sleep 2
+            if ! systemctl is-active --quiet chaoxing-sign; then
+              echo "SERVICE FAILED TO START"
+              journalctl -u chaoxing-sign --no-pager -n 20
+              exit 1
+            fi
+            echo "--- health check ---"
+            curl -sf http://127.0.0.1:8000/health
+          REMOTE_EOF

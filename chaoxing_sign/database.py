@@ -1,4 +1,5 @@
 """SQLAlchemy 数据库引擎和会话管理"""
+from __future__ import annotations
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 
