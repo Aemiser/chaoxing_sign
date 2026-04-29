@@ -757,9 +757,9 @@ const app = createApp({
 
             var retryCount = 0;
             var MAX_RETRY = 20;
-            var pos = new TMap.LatLng(parseFloat(self.locationLat), parseFloat(self.locationLng));
 
             var init = function() {
+                var pos = new TMap.LatLng(parseFloat(self.locationLat), parseFloat(self.locationLng));
                 retryCount++;
                 if (retryCount > MAX_RETRY) {
                     self.toast('地图加载失败，可手动输入经纬度签到');
