@@ -125,7 +125,7 @@
                     </div>
                     <span v-if="t.signed" style="display:flex;gap:6px;flex-shrink:0">
                         <span class="btn btn-small btn-badge badge-signed" style="opacity:0.7">已签</span>
-                        <button v-if="t.sign_type === 'qrcode' || t.sign_type === 'code' || t.sign_type === 'gesture'" class="btn btn-small btn-badge badge-proxy"
+                        <button v-if="t.sign_type !== 'normal' && t.sign_type !== 'photo'" class="btn btn-small btn-badge badge-proxy"
                                 @click="startProxySign(t)">代签</button>
                     </span>
                     <button v-else class="btn btn-small btn-badge"
@@ -148,7 +148,7 @@
     <section v-if="currentPage === 'scan'" class="page active">
         <nav class="navbar">
             <span class="navbar-back" @click="exitScanPage">&#x2039; 返回</span>
-            <span class="navbar-title">{{ signMode === 'code' ? '签到码签到' : signMode === 'gesture' ? '手势签到' : '扫二维码签到' }}</span>
+            <span class="navbar-title">{{ signMode === 'code' ? '签到码签到' : signMode === 'gesture' ? '手势签到' : signMode === 'location' ? '位置签到' : '扫二维码签到' }}</span>
             <span></span>
         </nav>
         <div class="page-content scan-page-content">
@@ -200,6 +200,27 @@
                 <div v-else class="gesture-code-display gesture-code-wait">
                     请绘制手势图案
                 </div>
+            </div>
+
+            <!-- 位置签到区 -->
+            <div v-if="signMode === 'location'" class="location-area">
+                <div class="location-search-bar">
+                    <input type="text" v-model="locationSearch" class="input" placeholder="搜索地点"
+                           @keyup.enter="doLocationSearch" style="flex:1;height:36px">
+                    <button class="btn-scan-go" @click="doLocationSearch" style="flex-shrink:0;padding:6px 14px;font-size:13px">搜索</button>
+                </div>
+                <div id="scan-location-map" class="scan-location-map"></div>
+                <div class="location-info-bar" v-if="locationName">
+                    <span>{{ locationName }}</span>
+                    <span style="color:#999;font-size:12px">{{ locationLng }}, {{ locationLat }}</span>
+                </div>
+                <div class="location-info-bar" v-else style="color:#ccc">
+                    点击地图选择位置或搜索地点
+                </div>
+                <button class="btn btn-primary" @click="doLocationSign" :disabled="signing || !locationLng"
+                        style="margin:12px 16px;width:calc(100% - 32px)">
+                    {{ signing ? '签到中...' : '确认签到' }}
+                </button>
             </div>
 
             <!-- 好友多选列表 -->

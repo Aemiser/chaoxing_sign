@@ -13,5 +13,7 @@
         "password": "your-db-password",
         "database": "chaoxing_sign"
     },
-    "jwt_secret": "change-this-to-a-random-secret-string"
+    "jwt_secret": "change-this-to-a-random-secret-string",
+    "amap_key": "你的高德地图key",
+    "amap_version": "2.0"
 }

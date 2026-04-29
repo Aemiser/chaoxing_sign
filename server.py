@@ -630,8 +630,8 @@ async def api_location_config(token: str = Query(...)):
 @app.get("/api/config")
 async def api_public_config():
     return {
-        "amap_key": "你的高德地图key",
-        "amap_version": "2.0",
+        "amap_key": cfg.get("amap_key", ""),
+        "amap_version": cfg.get("amap_version", "2.0"),
     }
 
 

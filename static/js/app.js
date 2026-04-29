@@ -72,6 +72,9 @@ const app = createApp({
             locationLng: '',
             locationLat: '',
             locationName: '',
+            locationSearch: '',
+            _scanMap: null,
+            _scanMapLoaded: false,
         };
     },
 
@@ -93,6 +96,7 @@ const app = createApp({
     watch: {
         currentPage(val) {
             if (this.cameraActive) this.stopScanCamera();
+            if (val !== 'scan' && this._scanMap) { this._scanMap.destroy(); this._scanMap = null; }
             if (val === 'home') { var self = this; self.loadFriends().then(function() { self.loadActiveCourses(); }); }
             if (val === 'courses') this.loadCourses();
             if (val === 'scan') { this.loadFriends(); if (this.signMode === 'gesture') { var s = this; nextTick(function() { s.gestureInitCanvas(); }); } }
@@ -251,26 +255,25 @@ const app = createApp({
 
         // 签到
         startSign: function(task) {
-            if (task.sign_type === 'qrcode' || task.sign_type === 'code' || task.sign_type === 'gesture') {
+            if (task.sign_type === 'qrcode' || task.sign_type === 'code' || task.sign_type === 'gesture' || task.sign_type === 'location') {
                 if (task.sign_type === 'code') this.signMode = 'code';
                 else if (task.sign_type === 'gesture') this.signMode = 'gesture';
+                else if (task.sign_type === 'location') this.signMode = 'location';
                 else this.signMode = 'qrcode';
                 this.selectedFriends = [];
                 this.scanLogs = [];
                 this.signCodeInput = '';
                 this.gestureCode = '';
                 this.gesturePoints = [];
+                this.locationLng = '';
+                this.locationLat = '';
+                this.locationName = '';
+                this.locationSearch = '';
                 this.currentTask = task;
                 this.currentPage = 'scan';
-                if (this.signMode === 'gesture') {
-                    var self = this;
-                    nextTick(function() { self.gestureInitCanvas(); });
-                }
-            } else if (task.sign_type === 'location') {
-                this.currentTask = task;
-                this.openLocationModal();
-            } else {
-                this.doDirectSign(task);
+                var self = this;
+                if (this.signMode === 'gesture') { nextTick(function() { self.gestureInitCanvas(); }); }
+                if (this.signMode === 'location') { nextTick(function() { self.initScanMap(); }); }
             }
         },
 
@@ -281,11 +284,18 @@ const app = createApp({
             this.signCodeInput = '';
             this.gestureCode = '';
             this.gesturePoints = [];
+            this.locationLng = '';
+            this.locationLat = '';
+            this.locationName = '';
+            this.locationSearch = '';
             this.currentTask = task;
             if (task.sign_type === 'code') this.signMode = 'code';
             else if (task.sign_type === 'gesture') this.signMode = 'gesture';
+            else if (task.sign_type === 'location') this.signMode = 'location';
             else this.signMode = 'qrcode';
             this.currentPage = 'scan';
+            var self = this;
+            if (this.signMode === 'location') { nextTick(function() { self.initScanMap(); }); }
         },
 
         doDirectSign: async function(task) {
@@ -733,7 +743,112 @@ const app = createApp({
             } catch (e) {}
         },
 
-        // 位置签到
+        // 位置签到（内嵌地图）
+        initScanMap: function() {
+            var self = this;
+            self.locationLng = localStorage.getItem('cx_loc_lng') || '116.404';
+            self.locationLat = localStorage.getItem('cx_loc_lat') || '39.915';
+            self.locationName = localStorage.getItem('cx_loc_name') || '北京市';
+
+            var loadMap = function() {
+                var tryInit = function() {
+                    setTimeout(function() {
+                        var el = document.getElementById('scan-location-map');
+                        if (!el || el.clientHeight === 0) { tryInit(); return; }
+                        if (typeof AMap === 'undefined' || !AMap.Map) { tryInit(); return; }
+                        if (self._scanMap) { self._scanMap.destroy(); }
+                        self._scanMap = new AMap.Map('scan-location-map', {
+                            center: [parseFloat(self.locationLng), parseFloat(self.locationLat)],
+                            zoom: 15,
+                            resizeEnable: true,
+                        });
+                        self._scanMap.on('click', function(e) {
+                            self.locationLng = String(e.lnglat.getLng());
+                            self.locationLat = String(e.lnglat.getLat());
+                            var geocoder = new AMap.Geocoder();
+                            geocoder.getAddress(e.lnglat, function(status, result) {
+                                if (status === 'complete' && result.regeocode) {
+                                    self.locationName = result.regeocode.formattedAddress || '';
+                                }
+                            });
+                        });
+                    }, 300);
+                };
+                tryInit();
+            };
+
+            if (window.AMap) { loadMap(); return; }
+            var key = localStorage.getItem('cx_amap_key') || '你的高德地图key';
+            var s = document.createElement('script');
+            s.src = 'https://webapi.amap.com/maps?v=2.0&key=' + key + '&plugin=AMap.Geocoder,AMap.Geolocation,AMap.PlaceSearch';
+            s.onload = loadMap;
+            document.head.appendChild(s);
+        },
+
+        doLocationSearch: function() {
+            var self = this;
+            if (!self.locationSearch.trim() || !window.AMap) return;
+            var placeSearch = new AMap.PlaceSearch({
+                pageSize: 5,
+                pageIndex: 1,
+                citylimit: false,
+            });
+            placeSearch.search(self.locationSearch.trim(), function(status, result) {
+                if (status === 'complete' && result.poiList && result.poiList.count > 0) {
+                    var poi = result.poiList.pois[0];
+                    self.locationLng = String(poi.location.getLng());
+                    self.locationLat = String(poi.location.getLat());
+                    self.locationName = poi.name;
+                    if (self._scanMap) {
+                        self._scanMap.setCenter([parseFloat(self.locationLng), parseFloat(self.locationLat)]);
+                    }
+                }
+            });
+        },
+
+        doLocationSign: async function() {
+            var self = this;
+            if (!self.locationLng) return self.toast('请选择位置');
+            self.scanLogs = [];
+            self.signing = true;
+            self.addLog('系统', 'info', '位置签到 ' + self.locationName);
+
+            var signParams = {
+                active_id: self.currentTask ? self.currentTask.active_id : '',
+                course_id: self.currentTask ? self.currentCourseId : '',
+                class_id: self.currentTask ? self.currentClassId : '',
+                sign_type: 'location',
+                longitude: self.locationLng,
+                latitude: self.locationLat,
+                location_name: self.locationName,
+            };
+
+            try {
+                var selfData = await self.api('POST', '/sign', signParams);
+                self.addLog(self.user.nickname || '自己', selfData.ok ? 'success' : 'fail');
+            } catch (e) { self.addLog('自己', 'fail'); }
+
+            if (self.selectedFriends.length > 0) {
+                for (var i = 0; i < self.selectedFriends.length; i++) {
+                    var fid = self.selectedFriends[i];
+                    var friend = self.friends.find(function(f) { return f.id === fid; });
+                    var name = friend ? friend.nickname : ('好友#' + fid);
+                    try {
+                        var data = await self.api('POST', '/sign', signParams);
+                        self.addLog(name, data.ok ? 'success' : 'fail');
+                    } catch (e) { self.addLog(name, 'fail'); }
+                }
+            }
+
+            self.signing = false;
+            self.addLog('系统', 'info', '签到完成');
+            localStorage.setItem('cx_loc_lng', self.locationLng);
+            localStorage.setItem('cx_loc_lat', self.locationLat);
+            localStorage.setItem('cx_loc_name', self.locationName);
+            if (self.currentTask) setTimeout(function() { self.loadTasks(); }, 1500);
+        },
+
+        // 位置签到（旧版弹窗，保留兼容）
         openLocationModal: function() {
             var self = this;
             if (window.AMap) {
@@ -830,6 +945,15 @@ const app = createApp({
     // 初始化
     mounted: async function() {
         var self = this;
+        // 获取高德地图 key
+        try {
+            var configResp = await fetch('/api/config');
+            var configData = await configResp.json();
+            if (configData.amap_key) {
+                localStorage.setItem('cx_amap_key', configData.amap_key);
+            }
+        } catch (e) {}
+
         var savedJwt = localStorage.getItem('cx_jwt');
         var savedUser = localStorage.getItem('cx_user');
         if (savedJwt && savedUser) {
