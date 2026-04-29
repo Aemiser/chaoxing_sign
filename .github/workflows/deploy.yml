@@ -56,12 +56,11 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           echo "StrictHostKeyChecking=accept-new" >> ~/.ssh/config
 
-      - name: Rsync files to server
+      - name: Deploy files to server
         run: |
-          rsync -avz --delete \
-            -e "ssh -i ~/.ssh/deploy_key" \
+          # 打包项目文件（排除敏感/无关项），通过 SSH 管道直传到服务器
+          tar czf - \
             --exclude='.git' \
-            --exclude='.gitignore' \
             --exclude='.github' \
             --exclude='.idea' \
             --exclude='.ruff_cache' \
@@ -73,7 +72,9 @@ jobs:
             --exclude='tests' \
             --exclude='README.md' \
             --exclude='ARCHITECTURE.md' \
-            ./ root@${{ secrets.DEPLOY_HOST }}:/opt/chaoxing-sign/
+            . | ssh -i ~/.ssh/deploy_key root@${{ secrets.DEPLOY_HOST }} \
+            'rm -rf /opt/chaoxing-sign/chaoxing_sign /opt/chaoxing-sign/static /opt/chaoxing-sign/server.py /opt/chaoxing-sign/main.py /opt/chaoxing-sign/requirements.txt /opt/chaoxing-sign/.gitignore && tar xzf - -C /opt/chaoxing-sign/'
+          echo "Files deployed successfully"
 
       - name: Install deps & restart service
         run: |
