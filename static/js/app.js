@@ -750,8 +750,15 @@ const app = createApp({
             self.locationLat = localStorage.getItem('cx_loc_lat') || '39.915';
             self.locationName = localStorage.getItem('cx_loc_name') || '北京市';
 
+            var retryCount = 0;
+            var MAX_RETRY = 20;
             var loadMap = function() {
                 var tryInit = function() {
+                    retryCount++;
+                    if (retryCount > MAX_RETRY) {
+                        self.toast('地图加载失败，可手动输入经纬度签到');
+                        return;
+                    }
                     setTimeout(function() {
                         var el = document.getElementById('scan-location-map');
                         if (!el || el.clientHeight === 0) { tryInit(); return; }
@@ -782,6 +789,9 @@ const app = createApp({
             var s = document.createElement('script');
             s.src = 'https://webapi.amap.com/maps?v=2.0&key=' + key + '&plugin=AMap.Geocoder,AMap.Geolocation,AMap.PlaceSearch';
             s.onload = loadMap;
+            s.onerror = function() {
+                self.toast('地图服务不可用，请检查高德 Key 域名白名单');
+            };
             document.head.appendChild(s);
         },
 
