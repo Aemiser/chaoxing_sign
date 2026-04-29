@@ -1,0 +1,14 @@
+- generic [ref=e4]:
+  - generic [ref=e6]: edit_note
+  - heading "超星学习通签到" [level=1] [ref=e7]
+  - paragraph [ref=e8]: 多合一签到 · 好友代签
+  - generic [ref=e9]:
+    - generic:
+      - generic: call
+    - textbox "手机号" [ref=e10]
+  - generic [ref=e11]:
+    - generic:
+      - generic: lock
+    - textbox "密码" [ref=e12]
+  - button "登 录" [ref=e13] [cursor=pointer]
+  - paragraph [ref=e14]: 使用超星学习通账号密码登录

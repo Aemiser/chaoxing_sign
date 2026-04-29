@@ -73,7 +73,7 @@ const app = createApp({
             locationLat: '',
             locationName: '',
             locationSearch: '',
-            tmapPickerSrc: '',
+            _scanMap: null,
         };
     },
 
@@ -95,7 +95,7 @@ const app = createApp({
     watch: {
         currentPage(val) {
             if (this.cameraActive) this.stopScanCamera();
-            if (val !== 'scan' && this._locMsgHandler) { window.removeEventListener('message', this._locMsgHandler); this._locMsgHandler = null; }
+            if (val !== 'scan' && this._scanMap) { this._scanMap.destroy(); this._scanMap = null; this._locationMarker = null; }
             if (val === 'home') { var self = this; self.loadFriends().then(function() { self.loadActiveCourses(); }); }
             if (val === 'courses') this.loadCourses();
             if (val === 'scan') { this.loadFriends(); if (this.signMode === 'gesture') { var s = this; nextTick(function() { s.gestureInitCanvas(); }); } }
@@ -744,9 +744,7 @@ const app = createApp({
 
         // 位置签到（内嵌地图）
         // ============================================================
-        // ============================================================
-        // 腾讯地图官方选点组件 (iframe + postMessage)
-        // 文档: https://lbs.qq.com/webApi/component/componentGuide/componentPicker
+        // 腾讯地图 JavaScript API GL 版 — 地图选点
         // ============================================================
 
         initScanMap: function() {
@@ -755,27 +753,86 @@ const app = createApp({
             self.locationLat = localStorage.getItem('cx_loc_lat') || '39.915';
             self.locationName = localStorage.getItem('cx_loc_name') || '北京市';
 
-            // 构造 iframe 地址
             var mapKey = localStorage.getItem('cx_tmap_key') || '';
             if (!mapKey) { self.toast('未配置腾讯地图 Key'); return; }
-            self.tmapPickerSrc = 'https://apis.map.qq.com/tools/locpicker?search=1&type=1'
-                + '&key=' + encodeURIComponent(mapKey)
-                + '&referer=chaoxing-sign';
 
-            // 监听 postMessage 接收用户选择的位置
-            self._locMsgHandler = function(event) {
-                var loc = event.data;
-                if (!loc || loc.module !== 'locationPicker') return;
-                // 仅在位置签到模式下处理
-                if (self.currentPage !== 'scan' || self.signMode !== 'location') return;
-                if (loc.latlng) {
-                    self.locationLng = String(loc.latlng.lng);
-                    self.locationLat = String(loc.latlng.lat);
+            var retryCount = 0;
+            var MAX_RETRY = 25;
+
+            var initMap = function() {
+                retryCount++;
+                if (retryCount > MAX_RETRY) {
+                    self.toast('地图加载失败，可手动输入经纬度签到');
+                    return;
                 }
-                if (loc.poiaddress) self.locationName = loc.poiaddress;
-                else if (loc.poiname) self.locationName = loc.poiname;
+                setTimeout(function() {
+                    var el = document.getElementById('scan-location-map');
+                    if (!el || el.clientHeight === 0) { initMap(); return; }
+                    if (typeof window.TMap === 'undefined') { initMap(); return; }
+
+                    var TMap = window.TMap;
+                    if (self._scanMap) { self._scanMap.destroy(); }
+
+                    var pos = new TMap.LatLng(parseFloat(self.locationLat), parseFloat(self.locationLng));
+                    self._scanMap = new TMap.Map('scan-location-map', {
+                        center: pos,
+                        zoom: 15,
+                    });
+
+                    self._locationMarker = new TMap.MultiMarker({
+                        map: self._scanMap,
+                        geometries: [{ id: 'pin', position: pos }],
+                    });
+
+                    self._scanMap.on('click', function(e) {
+                        var clicked = e.latLng;
+                        self.locationLng = String(clicked.getLng());
+                        self.locationLat = String(clicked.getLat());
+                        self._locationMarker.setGeometries([{ id: 'pin', position: clicked }]);
+                        var gc = new TMap.service.Geocoder();
+                        gc.getAddress({ location: clicked }).then(function(res) {
+                            if (res.status === 0 && res.result && res.result.address) {
+                                self.locationName = res.result.address || '';
+                            }
+                        }).catch(function() {});
+                    });
+                }, 300);
             };
-            window.addEventListener('message', self._locMsgHandler, false);
+
+            if (typeof window.TMap !== 'undefined') { initMap(); return; }
+
+            var s = document.createElement('script');
+            s.src = 'https://map.qq.com/api/gljs?v=1.exp&key=' + mapKey + '&libraries=service';
+            s.onload = function() { initMap(); };
+            s.onerror = function() { self.toast('腾讯地图 JS 加载失败'); };
+            document.head.appendChild(s);
+        },
+
+        doLocationSearch: function() {
+            var self = this;
+            if (!self.locationSearch.trim()) return;
+            var TMap = window.TMap;
+            if (!TMap || !TMap.service || !TMap.service.Search) return;
+            var search = new TMap.service.Search({ pageSize: 5 });
+            search.search({ keyword: self.locationSearch.trim() }).then(function(res) {
+                if (res.status === 0 && res.data && res.data.length > 0) {
+                    var poi = res.data[0];
+                    var lat = poi.location.lat;
+                    var lng = poi.location.lng;
+                    self.locationLng = String(lng);
+                    self.locationLat = String(lat);
+                    self.locationName = poi.title || '';
+                    var pos = new TMap.LatLng(lat, lng);
+                    if (self._scanMap) {
+                        self._scanMap.setCenter(pos);
+                        if (self._locationMarker) {
+                            self._locationMarker.setGeometries([{
+                                id: 'pin', position: pos,
+                            }]);
+                        }
+                    }
+                }
+            }).catch(function() {});
         },
 
         doLocationSign: async function() {
@@ -820,11 +877,25 @@ const app = createApp({
             if (self.currentTask) setTimeout(function() { self.loadTasks(); }, 1500);
         },
 
-        // 位置签到（旧版弹窗 — 已迁移至腾讯官方 iframe 选点组件）
         openLocationModal: function() {
-            this.initScanMap();
-            this.currentPage = 'scan';
-            this.signMode = 'location';
+            var self = this;
+            if (typeof window.TMap !== 'undefined' && window.TMap.Map) {
+                self.initScanMap();
+                self.currentPage = 'scan';
+                self.signMode = 'location';
+                return;
+            }
+            var mapKey = localStorage.getItem('cx_tmap_key') || '';
+            if (!mapKey) { self.toast('未配置腾讯地图 Key'); return; }
+            var s = document.createElement('script');
+            s.src = 'https://map.qq.com/api/gljs?v=1.exp&key=' + mapKey + '&libraries=service';
+            s.onload = function() {
+                self.initScanMap();
+                self.currentPage = 'scan';
+                self.signMode = 'location';
+            };
+            s.onerror = function() { self.toast('地图加载失败'); };
+            document.head.appendChild(s);
         },
     },
 
