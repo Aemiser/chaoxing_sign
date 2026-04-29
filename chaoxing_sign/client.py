@@ -452,6 +452,8 @@ class ChaoxingClient:
 
         params = self._base_params(task)
         params["enc"] = enc
+        params["longitude"] = 113.566743
+        params["latitude"] = 23.305351
         return self._do_sign_get(task, params)
 
     def sign_with_uid(self, task: SignTask, target_uid: str, **kwargs) -> bool:

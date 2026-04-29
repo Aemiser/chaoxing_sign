@@ -407,10 +407,11 @@ body {
     font-weight: 500;
 }
 .avatar-img {
-    position: absolute; inset: 0;
-    width: 100%; height: 100%;
-    border-radius: var(--m3-shape-full);
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
     object-fit: cover;
+    display: block;
 }
 .home-welcome { flex: 1; min-width: 0; }
 .home-greeting { font-size: var(--m3-title-lg); font-weight: 500; }
@@ -579,6 +580,7 @@ body {
     gap: 16px;
 }
 .profile-avatar {
+    position: relative;
     width: 60px; height: 60px;
     border-radius: var(--m3-shape-full);
     background: var(--m3-primary-container);
@@ -638,6 +640,7 @@ body {
     gap: 14px;
 }
 .friend-avatar {
+    position: relative;
     width: 46px; height: 46px;
     border-radius: var(--m3-shape-full);
     background: var(--m3-surface-container-high);
