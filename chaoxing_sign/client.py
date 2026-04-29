@@ -62,8 +62,12 @@ class ChaoxingClient:
     # 登录
     # ================================================================
 
-    def login(self, phone: str, password: str) -> bool:
-        """手机号 + 密码登录"""
+    def login(self, phone: str, password: str, skip_user_info: bool = False) -> bool:
+        """手机号 + 密码登录
+
+        skip_user_info: 跳过后置的 SSO uid/name 查询，仅从 cookie 提取 uid，
+                        可省一次 HTTP 往返（~500ms）。name 留待 get_account_info() 补充。
+        """
         # Step 1: 获取 cookie
         try:
             self.session.get(
@@ -98,18 +102,22 @@ class ChaoxingClient:
         # 判断登录结果
         text = resp.text
 
+        def _on_login_ok():
+            self._logged_in = True
+            self._check_login_cookies()
+            if not skip_user_info:
+                self._fetch_user_info()
+
         # HTML 方式返回
         if "恭喜您，登录成功" in text or "登录成功" in text:
-            self._logged_in = True
-            self._fetch_user_info()
+            _on_login_ok()
             return True
 
         # 可能的 JSON 返回
         try:
             data = resp.json()
             if data.get("status") is True or data.get("result") is True:
-                self._logged_in = True
-                self._fetch_user_info()
+                _on_login_ok()
                 return True
         except (json.JSONDecodeError, ValueError):
             pass
@@ -117,7 +125,8 @@ class ChaoxingClient:
         # Cookie 检查
         if self._check_login_cookies():
             self._logged_in = True
-            self._fetch_user_info()
+            if not skip_user_info:
+                self._fetch_user_info()
             return True
 
         return False

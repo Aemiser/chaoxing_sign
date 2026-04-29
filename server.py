@@ -237,8 +237,50 @@ def _bg_enrich_user(client: ChaoxingClient, uid: str, phone: str):
 
 @app.post("/api/login")
 async def api_login(phone: str = Query(...), password: str = Query(...)):
+    # --- 快速路径：尝试复用已保存的会话，免去 Chaoxing 登录 API 耗时 ---
+    if db_available:
+        db = None
+        try:
+            db = db_module.SessionLocal()
+            user = db.query(User).filter(User.username == phone).first()
+            if user:
+                saved = get_proxy_client(db, user.id)
+                if saved:
+                    # 用一次快速请求验证会话是否仍有效
+                    try:
+                        saved.session.get("https://i.chaoxing.com/base", timeout=5)
+                        # 会话有效，直接复用
+                        token = uuid.uuid4().hex
+                        sessions[token] = saved
+                        save_user_session(db, user.id, saved)
+                        jwt_token = create_jwt(user.id)
+                        log.info("复用已保存会话: phone=%s uid=%s", phone, saved.uid)
+                        return {
+                            "ok": True,
+                            "token": token,
+                            "uid": saved.uid,
+                            "name": saved.name or phone,
+                            "jwt": jwt_token,
+                            "user": {
+                                "id": user.id,
+                                "supernova_account": user.supernova_account,
+                                "nickname": user.nickname,
+                                "avatar": user.avatar or "",
+                                "school": user.school or "",
+                            },
+                        }
+                    except Exception:
+                        pass  # 会话已过期，走正常登录
+        except Exception:
+            pass
+        finally:
+            if db:
+                try: db.close()
+                except Exception: pass
+
+    # --- 正常登录路径 ---
     client = ChaoxingClient()
-    if not client.login(phone, password):
+    if not client.login(phone, password, skip_user_info=True):
         raise HTTPException(400, "登录失败，请检查账号密码")
 
     token = uuid.uuid4().hex

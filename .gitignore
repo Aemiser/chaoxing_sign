@@ -8,3 +8,4 @@ build/
 session.json
 config.json
 .idea/
+static/images/
