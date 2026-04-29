@@ -49,7 +49,7 @@ def create_jwt(user_id: int) -> str:
 def get_current_user_id(authorization: str = Header(...)) -> int:
     if not authorization.startswith("Bearer "):
         raise HTTPException(401, "无效的认证头")
-    token = authorization.removeprefix("Bearer ").strip()
+    token = authorization[7:].strip()  # remove "Bearer " prefix (Python 3.8 compat)
     try:
         payload = jwt.decode(token, _secret, algorithms=[ALGORITHM])
         return int(payload["sub"])
