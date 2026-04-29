@@ -26,7 +26,7 @@ const app = createApp({
             courses: [],
             activeCourses: [],
             courseSearch: '',
-            courseIcons: ['📖', '📕', '📗', '📘', '📙', '📚', '📓', '📒'],
+            courseIcons: ['auto_stories', 'menu_book', 'import_contacts', 'book_2', 'dictionary', 'library_books', 'school', 'local_library'],
 
             // 任务
             currentCourseName: '',

@@ -1,686 +1,156 @@
 /* ============================================================
-   超星学习通签到 - Mobile-First Styles
-   Design reference: chaoxing-sign-app
-   Base viewport: 375px
+   超星学习通签到 — Material Design 3 Mobile-First Styles
    ============================================================ */
 
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
+/* ---------- M3 Design Tokens ---------- */
+:root {
+    /* Primary */
+    --m3-primary: #1677ff;
+    --m3-on-primary: #ffffff;
+    --m3-primary-container: #dae2ff;
+    --m3-on-primary-container: #001a41;
+
+    /* Surface */
+    --m3-surface: #fdfbff;
+    --m3-surface-container-low: #f3f3f7;
+    --m3-surface-container: #edecf2;
+    --m3-surface-container-high: #e8e7ec;
+    --m3-on-surface: #1b1b1f;
+    --m3-on-surface-variant: #45464f;
+
+    /* Outline */
+    --m3-outline: #74767f;
+    --m3-outline-variant: #c4c5d0;
+
+    /* Semantic */
+    --m3-success: #00b578;
+    --m3-on-success: #ffffff;
+    --m3-success-container: #c2ffd3;
+    --m3-warning: #ff8f1f;
+    --m3-error: #ba1a1a;
+    --m3-on-error: #ffffff;
+    --m3-error-container: #ffdad6;
+
+    /* State layers */
+    --m3-state-hover: rgba(0,0,0,0.04);
+    --m3-state-press: rgba(0,0,0,0.08);
+
+    /* Elevation */
+    --m3-elevation-0: none;
+    --m3-elevation-1: 0 1px 2px rgba(0,0,0,0.08);
+    --m3-elevation-2: 0 1px 2px rgba(0,0,0,0.08), 0 2px 6px rgba(0,0,0,0.05);
+    --m3-elevation-3: 0 4px 8px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.06);
+
+    /* Shape */
+    --m3-shape-xs: 4px;
+    --m3-shape-sm: 8px;
+    --m3-shape-md: 12px;
+    --m3-shape-lg: 16px;
+    --m3-shape-xl: 28px;
+    --m3-shape-full: 999px;
+
+    /* Type scale */
+    --m3-label-sm: 11px;
+    --m3-label-md: 12px;
+    --m3-label-lg: 14px;
+    --m3-body-sm: 12px;
+    --m3-body-md: 14px;
+    --m3-body-lg: 16px;
+    --m3-title-sm: 14px;
+    --m3-title-md: 16px;
+    --m3-title-lg: 22px;
+    --m3-headline-sm: 24px;
+    --m3-headline-md: 28px;
+
+    /* Layout */
+    --navbar-height: 56px;
+    --bottom-nav-height: 64px;
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-:root {
-    --bg: #f5f6f8;
-    --card: #ffffff;
-    --text: #000000;
-    --gray: gray;
-    --muted: #c1c1c1;
-    --border: #ebebeb;
-    --primary: #1677ff;
-    --success: #00b578;
-    --warning: #ff8f1f;
-    --danger: #ff3141;
-    --radius: 10px;
-    --nav-height: 44px;
-    --tab-height: 50px;
-}
+/* ---------- Reset ---------- */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    font-size: 15px;
+    font-family: "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    background: var(--m3-surface-container);
+    color: var(--m3-on-surface);
+    font-size: var(--m3-body-md);
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
     -webkit-tap-highlight-color: transparent;
 }
 
-/* ============================================================
-   App Container
-   ============================================================ */
+/* ---------- Material Symbols base ---------- */
+.material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    vertical-align: middle;
+    line-height: 1;
+}
+.icon-64 { font-size: 64px !important; }
 
+/* ---------- App Shell ---------- */
 .app {
     max-width: 500px;
     margin: 0 auto;
     min-height: 100vh;
-    background: var(--bg);
+    background: var(--m3-surface);
     position: relative;
     overflow-x: hidden;
 }
 
-/* ============================================================
-   Pages
-   ============================================================ */
+/* ---------- Pages ---------- */
+.page { display: none; min-height: 100vh; background: var(--m3-surface); }
+.page.active { display: block; }
+.page-content { padding-bottom: 20px; }
 
-.page {
-    display: none;
-    min-height: 100vh;
-    background: var(--bg);
-}
-
-.page.active {
-    display: block;
-}
-
-.page-content {
-    padding-bottom: 20px;
-}
-
-/* ============================================================
-   NavBar (reference: antd-mobile NavBar)
-   ============================================================ */
-
+/* ---------- NavBar (M3 Top App Bar) ---------- */
 .navbar {
-    height: var(--nav-height);
-    background: var(--card);
+    height: var(--navbar-height);
+    background: var(--m3-surface);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 16px;
+    padding: 0 4px;
     position: sticky;
     top: 0;
     z-index: 100;
-    border-bottom: 0.5px solid var(--border);
 }
 
 .navbar-title {
-    font-size: 17px;
+    font-size: var(--m3-title-lg);
     font-weight: 500;
-    text-align: center;
+    color: var(--m3-on-surface);
     flex: 1;
+    text-align: center;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-.navbar-back {
-    color: var(--primary);
-    font-size: 15px;
-    cursor: pointer;
-    flex-shrink: 0;
-}
-
-.navbar-right {
-    color: var(--primary);
-    font-size: 15px;
-    cursor: pointer;
-    flex-shrink: 0;
-}
-
-/* ============================================================
-   Login Page
-   ============================================================ */
-
-.login-container {
+.nav-btn {
+    width: 48px;
+    height: 48px;
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
-    min-height: 100vh;
-    padding: 40px 30px;
-    background: var(--card);
-}
-
-.login-logo {
-    font-size: 64px;
-    margin-bottom: 16px;
-}
-
-.login-title {
-    font-size: 22px;
-    font-weight: 600;
-    margin-bottom: 4px;
-}
-
-.login-subtitle {
-    font-size: 13px;
-    color: var(--muted);
-    margin-bottom: 40px;
-}
-
-.login-hint {
-    font-size: 12px;
-    color: var(--muted);
-    margin-top: 24px;
-    text-align: center;
-}
-
-/* ============================================================
-   Form Elements
-   ============================================================ */
-
-.form-group {
-    width: 100%;
-    margin-bottom: 16px;
-}
-
-.input {
-    width: 100%;
-    height: 44px;
-    padding: 0 14px;
-    font-size: 15px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--card);
-    color: var(--text);
-    outline: none;
-    transition: border-color 0.2s;
-}
-
-.input:focus {
-    border-color: var(--primary);
-}
-
-.input::placeholder {
-    color: var(--muted);
-}
-
-.btn {
-    display: inline-block;
-    width: 100%;
-    height: 44px;
-    border: none;
-    border-radius: 8px;
-    font-size: 16px;
-    font-weight: 500;
+    border-radius: var(--m3-shape-full);
     cursor: pointer;
-    transition: opacity 0.2s;
-    text-align: center;
-    line-height: 44px;
+    color: var(--m3-on-surface-variant);
+    transition: background 0.2s;
+    flex-shrink: 0;
 }
-
-.btn:active {
-    opacity: 0.8;
-}
-
-.btn-primary {
-    background: var(--primary);
-    color: white;
-}
-
-.btn-outline {
-    background: var(--card);
-    color: var(--primary);
-    border: 1px solid var(--primary);
-}
-
-.btn-success {
-    background: var(--success);
-    color: white;
-}
-
-.btn-small {
+.nav-btn:active { background: var(--m3-state-press); }
+.nav-btn.text-btn {
     width: auto;
-    height: 32px;
-    line-height: 32px;
-    font-size: 13px;
-    padding: 0 14px;
-    border-radius: 16px;
-}
-
-/* ============================================================
-   Search Box (reference: my-course page)
-   ============================================================ */
-
-.search-box {
-    padding: 10px 16px;
-}
-
-.search-box .input {
-    background: var(--card);
-    border-radius: var(--radius);
-    height: 36px;
-    font-size: 13px;
-    text-align: center;
-}
-
-/* ============================================================
-   Course / Task Cards (reference: courseItem / listItem)
-   ============================================================ */
-
-.course-item {
-    display: flex;
-    align-items: center;
-    background: var(--card);
-    border-radius: var(--radius);
-    margin: 8px 14px 0 14px;
-    padding: 12px;
-    gap: 12px;
-    cursor: pointer;
-    transition: background 0.15s;
-}
-
-.course-item:active {
-    background: #f0f0f0;
-}
-
-.course-icon {
-    width: 40px;
-    height: 40px;
-    border-radius: 8px;
-    background: #f0f0f0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 22px;
-    flex-shrink: 0;
-}
-
-.course-info {
-    flex: 1;
-    min-width: 0;
-}
-
-.course-name {
-    font-size: 15px;
-    color: var(--text);
-    display: block;
-}
-
-.course-teacher {
-    font-size: 12px;
-    color: var(--gray);
-    margin-top: 2px;
-    display: block;
-}
-
-.course-arrow {
-    color: var(--muted);
-    font-size: 22px;
-    flex-shrink: 0;
-}
-
-/* Task item */
-.task-item {
-    display: flex;
-    align-items: center;
-    background: var(--card);
-    border-radius: var(--radius);
-    margin: 0 14px 8px 14px;
-    padding: 12px;
-    gap: 12px;
-}
-
-.ended-item {
-    opacity: 0.6;
-}
-
-.task-info {
-    flex: 1;
-    min-width: 0;
-}
-
-.task-name {
-    font-size: 15px;
-    color: var(--text);
-    display: block;
-}
-
-.task-time {
-    font-size: 12px;
-    color: var(--gray);
-    margin-top: 2px;
-    display: block;
-}
-
-.btn-badge {
-    font-size: 12px !important;
-    padding: 4px 12px !important;
-    border-radius: 12px !important;
-    color: white !important;
-    font-weight: 500;
-    flex-shrink: 0;
-    cursor: pointer;
-    height: auto !important;
-    line-height: 1.4 !important;
-    border: none !important;
-}
-
-.badge-normal  { background: var(--success); }
-.badge-photo   { background: #8b5cf6; }
-.badge-gesture { background: var(--primary); }
-.badge-location{ background: #f59e0b; }
-.badge-qrcode  { background: var(--warning); }
-.badge-code    { background: #ec4899; }
-
-.badge-ended {
-    background: var(--muted) !important;
-    color: white;
-}
-
-.badge-signed {
-    background: var(--success) !important;
-    color: #fff !important;
-    cursor: default;
-}
-
-.badge-proxy {
-    background: var(--warning) !important;
-    color: #fff !important;
-}
-
-/* ============================================================
-   Empty State
-   ============================================================ */
-
-.empty-state {
-    text-align: center;
-    padding: 60px 20px;
-    color: var(--muted);
-}
-
-.empty-state .empty-icon {
-    font-size: 48px;
-    margin-bottom: 12px;
-}
-
-.empty-state p {
-    font-size: 14px;
-}
-
-/* ============================================================
-   Section Title
-   ============================================================ */
-
-.section-title {
-    font-size: 13px;
-    color: var(--gray);
-    padding: 16px 14px 8px;
-}
-
-/* ============================================================
-   Modal (reference: antd-mobile Popup)
-   ============================================================ */
-
-.modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 1000;
-}
-
-.modal.show {
-    display: block;
-}
-
-.modal-mask {
-    position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0, 0, 0, 0.45);
-}
-
-.modal-content {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    max-width: 500px;
-    margin: 0 auto;
-    background: var(--card);
-    border-radius: 16px 16px 0 0;
-    max-height: 85vh;
-    overflow-y: auto;
-    padding-bottom: env(safe-area-inset-bottom);
-}
-
-.modal-full {
-    height: 90vh;
-    border-radius: 0;
-}
-
-.modal-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 16px 18px;
-    font-size: 17px;
-    font-weight: 500;
-    border-bottom: 0.5px solid var(--border);
-}
-
-.modal-close {
-    font-size: 18px;
-    color: var(--gray);
-    cursor: pointer;
-    padding: 4px;
-}
-
-/* ============================================================
-   QR Code Tabs
-   ============================================================ */
-
-.qr-tabs {
-    display: flex;
-    border-bottom: 1px solid var(--border);
-}
-
-.qr-tab {
-    flex: 1;
-    text-align: center;
-    padding: 12px 0;
-    font-size: 14px;
-    color: var(--gray);
-    cursor: pointer;
-    border-bottom: 2px solid transparent;
-    transition: all 0.2s;
-}
-
-.qr-tab.active {
-    color: var(--primary);
-    border-bottom-color: var(--primary);
+    padding: 0 16px;
+    color: var(--m3-primary);
+    font-size: var(--m3-label-lg);
     font-weight: 500;
 }
+.nav-btn.invisible { visibility: hidden; }
 
-.qr-panel {
-    display: none;
-    padding: 16px;
-}
-
-.qr-panel.active {
-    display: block;
-}
-
-.qr-video {
-    width: 100%;
-    max-height: 300px;
-    background: #000;
-    border-radius: 8px;
-    object-fit: cover;
-}
-
-.qr-hint {
-    text-align: center;
-    color: var(--gray);
-    font-size: 13px;
-    margin-top: 12px;
-}
-
-.qr-result {
-    text-align: center;
-    font-size: 13px;
-    margin-top: 8px;
-    word-break: break-all;
-}
-
-.qr-result.success {
-    color: var(--success);
-}
-
-.qr-result.error {
-    color: var(--danger);
-}
-
-.qr-file-btn {
-    display: block;
-    text-align: center;
-    cursor: pointer;
-}
-
-.qr-textarea {
-    height: 80px;
-    resize: none;
-    padding: 10px 14px;
-    margin-bottom: 12px;
-}
-
-.qr-submit,
-.location-submit {
-    margin: 12px 16px 24px;
-    width: calc(100% - 32px);
-}
-
-.qr-enc-input {
-    margin-top: 0;
-}
-
-/* ============================================================
-   Location Map
-   ============================================================ */
-
-.location-map {
-    width: 100%;
-    height: 55vh;
-    background: #e8e8e8;
-}
-
-.location-info {
-    padding: 12px 18px;
-    font-size: 14px;
-    color: var(--gray);
-    min-height: 44px;
-}
-
-.location-pin {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -100%);
-    font-size: 32px;
-    z-index: 10;
-    pointer-events: none;
-}
-
-/* ============================================================
-   Profile Page
-   ============================================================ */
-
-.profile-card {
-    display: flex;
-    align-items: center;
-    background: var(--card);
-    padding: 20px 16px;
-    margin-bottom: 8px;
-    gap: 14px;
-}
-
-.profile-avatar {
-    position: relative;
-    width: 50px;
-    height: 50px;
-    border-radius: 50%;
-    background: #e8e8e8;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 28px;
-    overflow: hidden;
-}
-
-.avatar-img {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    border-radius: 50%;
-    object-fit: cover;
-}
-
-.profile-name {
-    font-size: 17px;
-    font-weight: 500;
-}
-
-.profile-uid {
-    font-size: 12px;
-    color: var(--gray);
-}
-
-/* ============================================================
-   Toast
-   ============================================================ */
-
-.toast {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: rgba(0, 0, 0, 0.75);
-    color: white;
-    padding: 10px 24px;
-    border-radius: 8px;
-    font-size: 14px;
-    z-index: 2000;
-    opacity: 0;
-    transition: opacity 0.3s;
-    pointer-events: none;
-    white-space: nowrap;
-}
-
-.toast.show {
-    opacity: 1;
-}
-
-/* ============================================================
-   Loading
-   ============================================================ */
-
-.loading {
-    text-align: center;
-    padding: 40px 0;
-    color: var(--gray);
-}
-
-.spinner {
-    display: inline-block;
-    width: 24px;
-    height: 24px;
-    border: 3px solid var(--border);
-    border-top-color: var(--primary);
-    border-radius: 50%;
-    animation: spin 0.6s linear infinite;
-}
-
-@keyframes spin {
-    to { transform: rotate(360deg); }
-}
-
-/* ============================================================
-   Scroll area
-   ============================================================ */
-
-.page-content {
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-}
-
-/* ============================================================
-   Responsive: on larger screens, center the content
-   ============================================================ */
-
-@media (min-width: 501px) {
-    .app {
-        border-left: 1px solid var(--border);
-        border-right: 1px solid var(--border);
-    }
-}
-
-/* ============================================================
-   Bottom Navigation Bar
-   ============================================================ */
-
+/* ---------- Bottom Nav (M3 Navigation Bar) ---------- */
 .bottom-nav {
     position: fixed;
     bottom: 0;
@@ -688,14 +158,12 @@ body {
     transform: translateX(-50%);
     width: 100%;
     max-width: 500px;
-    height: 56px;
-    background: var(--card);
+    height: var(--bottom-nav-height);
+    background: var(--m3-surface-container);
     display: flex;
-    border-top: 0.5px solid var(--border);
     z-index: 200;
-    padding-bottom: env(safe-area-inset-bottom);
+    padding-bottom: var(--safe-bottom);
 }
-
 .nav-item {
     flex: 1;
     display: flex;
@@ -703,44 +171,232 @@ body {
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    color: var(--gray);
-    transition: color 0.2s;
+    color: var(--m3-on-surface-variant);
+    transition: all 0.2s;
+    gap: 2px;
+    position: relative;
+}
+.nav-item.active { color: var(--m3-primary); }
+.nav-icon { font-size: 24px !important; }
+.nav-label { font-size: var(--m3-label-sm); font-weight: 500; }
+.nav-item.active::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 25%;
+    right: 25%;
+    height: 3px;
+    border-radius: 0 0 3px 3px;
+    background: var(--m3-primary);
+}
+.page { padding-bottom: calc(var(--bottom-nav-height) + var(--safe-bottom) + 20px); }
+
+/* ---------- Buttons (M3) ---------- */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 44px;
+    border: none;
+    border-radius: var(--m3-shape-full);
+    font-size: var(--m3-label-lg);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    padding: 0 24px;
+    letter-spacing: 0.01em;
+}
+.btn:active { transform: scale(0.97); }
+.btn:disabled { opacity: 0.38; cursor: not-allowed; transform: none; }
+
+.btn-filled {
+    background: var(--m3-primary);
+    color: var(--m3-on-primary);
+    box-shadow: var(--m3-elevation-1);
+}
+.btn-filled:hover { box-shadow: var(--m3-elevation-2); }
+
+.btn-outlined {
+    background: transparent;
+    color: var(--m3-primary);
+    border: 1px solid var(--m3-outline);
 }
 
-.nav-item.active {
-    color: var(--primary);
+.btn-tonal {
+    background: var(--m3-primary-container);
+    color: var(--m3-on-primary-container);
 }
 
-.nav-icon {
-    font-size: 20px;
-    line-height: 1;
+.btn-sm {
+    height: 36px;
+    padding: 0 16px;
+    font-size: var(--m3-label-md);
 }
 
-.nav-label {
-    font-size: 10px;
-    margin-top: 2px;
+.btn-scan {
+    padding: 0 16px;
+    height: 36px;
+    font-size: var(--m3-label-md);
+}
+.btn-scan-stop {
+    padding: 0 20px;
+    height: 36px;
+    font-size: var(--m3-label-md);
+    color: var(--m3-error);
+    border: 1px solid var(--m3-error);
+    background: transparent;
+    border-radius: var(--m3-shape-full);
+    cursor: pointer;
 }
 
-.page { padding-bottom: 80px; }
+/* ---------- Chips (M3 Assist Chips) ---------- */
+.chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 14px;
+    font-size: var(--m3-label-sm);
+    font-weight: 500;
+    border-radius: var(--m3-shape-sm);
+    flex-shrink: 0;
+    border: 1px solid var(--m3-outline-variant);
+    color: var(--m3-on-surface-variant);
+    background: transparent;
+    line-height: 1.7;
+}
+.chip-btn { cursor: pointer; transition: all 0.15s; }
+.chip-btn:active { background: var(--m3-state-press); }
 
-/* ============================================================
-   Home Page
-   ============================================================ */
+.chip-primary  { background: var(--m3-primary); color: var(--m3-on-primary); border-color: var(--m3-primary); }
+.chip-success  { background: var(--m3-success); color: var(--m3-on-success); border-color: var(--m3-success); }
+.chip-warning  { background: var(--m3-warning); color: var(--m3-on-success); border-color: var(--m3-warning); }
+.chip-muted    { background: var(--m3-surface-container-high); color: var(--m3-on-surface-variant); border-color: transparent; }
 
+/* Sign type chips — keep distinct colors */
+.chip-normal   { background: var(--m3-success); color: var(--m3-on-success); border-color: transparent; }
+.chip-photo    { background: #8b5cf6; color: #fff; border-color: transparent; }
+.chip-gesture  { background: var(--m3-primary); color: var(--m3-on-primary); border-color: transparent; }
+.chip-location { background: #f59e0b; color: #fff; border-color: transparent; }
+.chip-qrcode   { background: var(--m3-warning); color: #fff; border-color: transparent; }
+.chip-code     { background: #ec4899; color: #fff; border-color: transparent; }
+
+/* ---------- Form Inputs (M3 Text Fields) ---------- */
+.form-group {
+    width: 100%;
+    margin-bottom: 16px;
+    position: relative;
+}
+
+.input-icon {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--m3-on-surface-variant);
+    z-index: 1;
+    pointer-events: none;
+    display: flex;
+}
+.input-icon .material-symbols-outlined { font-size: 20px; }
+
+.input {
+    width: 100%;
+    height: 48px;
+    padding: 0 14px;
+    font-size: var(--m3-body-lg);
+    border: 1px solid var(--m3-outline-variant);
+    border-radius: var(--m3-shape-sm);
+    background: var(--m3-surface);
+    color: var(--m3-on-surface);
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.input.has-icon { padding-left: 40px; }
+.input:focus {
+    border-color: var(--m3-primary);
+    box-shadow: 0 0 0 2px rgba(22,119,255,0.12);
+}
+.input::placeholder { color: var(--m3-on-surface-variant); }
+
+.search-box {
+    padding: 8px 16px 12px;
+    position: relative;
+}
+.search-box .input {
+    height: 44px;
+    padding-left: 42px;
+    border-radius: var(--m3-shape-full);
+    background: var(--m3-surface-container-high);
+    border-color: transparent;
+    font-size: var(--m3-body-md);
+}
+.search-box .input:focus {
+    background: var(--m3-surface);
+    border-color: var(--m3-primary);
+    box-shadow: none;
+}
+.search-icon {
+    position: absolute;
+    left: 28px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--m3-on-surface-variant);
+    font-size: 20px !important;
+    pointer-events: none;
+}
+
+/* ---------- Login Page ---------- */
+.login-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 40px 30px;
+    background: var(--m3-surface);
+}
+.login-icon {
+    width: 80px;
+    height: 80px;
+    border-radius: var(--m3-shape-xl);
+    background: var(--m3-primary-container);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--m3-primary);
+    margin-bottom: 20px;
+}
+.login-title {
+    font-size: var(--m3-headline-sm);
+    font-weight: 500;
+    color: var(--m3-on-surface);
+    margin-bottom: 4px;
+}
+.login-subtitle {
+    font-size: var(--m3-body-md);
+    color: var(--m3-on-surface-variant);
+    margin-bottom: 40px;
+}
+.login-hint {
+    font-size: var(--m3-label-md);
+    color: var(--m3-on-surface-variant);
+    margin-top: 24px;
+    text-align: center;
+}
+
+/* ---------- Home Page ---------- */
 .home-header {
     display: flex;
     align-items: center;
-    gap: 14px;
-    padding: 24px 16px 16px;
-    background: linear-gradient(135deg, #1677ff 0%, #5b9cf5 100%);
-    color: white;
+    gap: 16px;
+    padding: 24px 16px 20px;
+    background: linear-gradient(135deg, #1677ff 0%, #4096ff 100%);
+    color: var(--m3-on-primary);
 }
-
 .home-avatar {
     position: relative;
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
+    width: 52px;
+    height: 52px;
+    border-radius: var(--m3-shape-full);
     background: rgba(255,255,255,0.25);
     display: flex;
     align-items: center;
@@ -748,22 +404,17 @@ body {
     font-size: 22px;
     flex-shrink: 0;
     overflow: hidden;
+    font-weight: 500;
 }
-
-.home-welcome {
-    flex: 1;
+.avatar-img {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    border-radius: var(--m3-shape-full);
+    object-fit: cover;
 }
-
-.home-greeting {
-    font-size: 18px;
-    font-weight: 600;
-}
-
-.home-account {
-    font-size: 13px;
-    opacity: 0.8;
-    margin-top: 2px;
-}
+.home-welcome { flex: 1; min-width: 0; }
+.home-greeting { font-size: var(--m3-title-lg); font-weight: 500; }
+.home-account { font-size: var(--m3-body-sm); opacity: 0.8; margin-top: 2px; }
 
 .action-cards {
     padding: 16px;
@@ -771,249 +422,203 @@ body {
     grid-template-columns: 1fr 1fr;
     gap: 12px;
 }
-
 .action-card {
-    background: var(--card);
-    border-radius: var(--radius);
-    padding: 20px 16px;
+    background: var(--m3-surface-container-low);
+    border-radius: var(--m3-shape-lg);
+    padding: 24px 16px;
     display: flex;
     flex-direction: column;
     align-items: center;
     text-align: center;
-    gap: 6px;
+    gap: 8px;
     cursor: pointer;
     transition: all 0.15s;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
 }
+.action-card:active { background: var(--m3-surface-container-high); transform: scale(0.97); }
+.action-icon { font-size: 36px !important; color: var(--m3-primary); }
+.action-label { font-size: var(--m3-title-sm); font-weight: 500; color: var(--m3-on-surface); }
+.action-desc  { font-size: var(--m3-label-sm); color: var(--m3-on-surface-variant); }
 
-.action-card:active {
-    background: #f0f0f0;
-    transform: scale(0.97);
-}
+.home-active-section { margin-top: 4px; }
 
-.action-icon {
-    font-size: 32px;
-}
-
-.action-label {
-    font-size: 14px;
+/* ---------- Section Title ---------- */
+.section-title {
+    font-size: var(--m3-title-sm);
     font-weight: 500;
-    color: var(--text);
-}
-
-.action-desc {
-    font-size: 11px;
-    color: var(--gray);
-}
-
-.home-active-section {
-    margin-top: 8px;
-}
-
-.home-badge {
-    background: var(--success);
-    color: #fff;
-    font-size: 12px;
-    padding: 3px 10px;
-    border-radius: 12px;
-    font-weight: 500;
-    flex-shrink: 0;
-    margin-left: auto;
-    margin-right: 8px;
-}
-
-/* ============================================================
-   Confirm Sign Page
-   ============================================================ */
-
-.confirm-card {
-    background: var(--card);
-    margin: 16px;
-    padding: 16px;
-    border-radius: var(--radius);
-}
-
-.confirm-qr-info {
+    color: var(--m3-on-surface);
+    padding: 16px 16px 10px;
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: 6px;
 }
-
-.confirm-icon {
-    font-size: 36px;
+.section-icon {
+    font-size: 18px !important;
+    color: var(--m3-primary);
 }
-
-.confirm-title {
-    font-size: 16px;
-    font-weight: 500;
-}
-
-.confirm-detail {
-    font-size: 13px;
-    color: var(--gray);
-    margin-top: 4px;
-}
-
-.confirm-self {
-    padding: 12px 16px;
-}
-
-.confirm-friends {
-    padding: 0 16px 16px;
-}
-
-.confirm-section-title {
-    font-size: 14px;
-    color: var(--gray);
-    margin-bottom: 12px;
-}
-
-.checkbox-label {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 0;
+.section-ended { color: var(--m3-on-surface-variant); }
+.scan-friend-refresh {
+    font-size: var(--m3-label-md);
+    color: var(--m3-primary);
     cursor: pointer;
-}
-
-.checkbox-label input[type="checkbox"] {
-    width: 20px;
-    height: 20px;
-    accent-color: var(--primary);
-}
-
-.friend-checkbox {
-    background: var(--card);
-    margin: 0 0 8px;
-    padding: 12px;
-    border-radius: 8px;
-}
-
-.friend-check-name {
-    font-size: 15px;
-    font-weight: 500;
-}
-
-.friend-check-account {
-    font-size: 12px;
-    color: var(--gray);
     margin-left: auto;
+    font-weight: 400;
 }
 
-.confirm-btn {
-    margin: 16px;
-    width: calc(100% - 32px);
-}
-
-/* ============================================================
-   Friend Cards
-   ============================================================ */
-
-.friend-card {
+/* ---------- Course & Task Items ---------- */
+.course-item {
     display: flex;
     align-items: center;
-    background: var(--card);
-    border-radius: var(--radius);
-    margin: 0 14px 8px;
-    padding: 12px;
-    gap: 12px;
+    background: var(--m3-surface);
+    border-radius: var(--m3-shape-md);
+    margin: 0 16px 2px;
+    padding: 14px 12px;
+    gap: 14px;
+    cursor: pointer;
+    transition: background 0.15s;
 }
+.course-item:active { background: var(--m3-surface-container-low); }
 
-.friend-avatar {
-    position: relative;
+.course-icon {
     width: 44px;
     height: 44px;
-    border-radius: 50%;
-    background: #e8e8e8;
+    border-radius: var(--m3-shape-md);
+    background: var(--m3-primary-container);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 20px;
+    font-size: 22px !important;
+    color: var(--m3-on-primary-container);
     flex-shrink: 0;
-    overflow: hidden;
+}
+.course-info { flex: 1; min-width: 0; }
+.course-name { font-size: var(--m3-body-lg); color: var(--m3-on-surface); display: block; }
+.course-teacher { font-size: var(--m3-body-sm); color: var(--m3-on-surface-variant); margin-top: 2px; display: block; }
+.item-arrow {
+    color: var(--m3-on-surface-variant);
+    font-size: 20px !important;
+    flex-shrink: 0;
 }
 
-.friend-info {
-    flex: 1;
-    min-width: 0;
+/* Task item */
+.task-item {
+    display: flex;
+    align-items: center;
+    background: var(--m3-surface);
+    border-radius: var(--m3-shape-md);
+    margin: 0 16px 2px;
+    padding: 14px 12px;
+    gap: 12px;
 }
+.ended-item { opacity: 0.5; }
+.task-info { flex: 1; min-width: 0; }
+.task-name { font-size: var(--m3-body-lg); color: var(--m3-on-surface); display: block; }
+.task-time { font-size: var(--m3-body-sm); color: var(--m3-on-surface-variant); margin-top: 2px; display: block; }
 
-.friend-name {
-    font-size: 15px;
-    display: block;
+/* ---------- Empty State ---------- */
+.empty-state {
+    text-align: center;
+    padding: 64px 20px;
+    color: var(--m3-on-surface-variant);
 }
+.empty-icon { font-size: 48px !important; margin-bottom: 12px; color: var(--m3-outline-variant); }
+.empty-state p { font-size: var(--m3-body-md); }
 
-.friend-account {
-    font-size: 12px;
-    color: var(--gray);
-    margin-top: 2px;
-    display: block;
+/* ---------- Modal (M3 Bottom Sheet) ---------- */
+.modal {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 1000;
 }
+.modal-mask {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.35);
+}
+.modal-content {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    max-width: 500px;
+    margin: 0 auto;
+    background: var(--m3-surface-container-low);
+    border-radius: var(--m3-shape-lg) var(--m3-shape-lg) 0 0;
+    max-height: 85vh;
+    overflow-y: auto;
+    padding-bottom: var(--safe-bottom);
+}
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 20px 14px;
+}
+.modal-title {
+    font-size: var(--m3-title-lg);
+    font-weight: 500;
+    color: var(--m3-on-surface);
+}
+.modal-close {
+    width: 36px;
+    height: 36px;
+    border-radius: var(--m3-shape-full);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--m3-on-surface-variant);
+}
+.modal-close:active { background: var(--m3-state-press); }
 
-/* ============================================================
-   Profile Page
-   ============================================================ */
-
+/* ---------- Profile ---------- */
 .profile-card {
     display: flex;
     align-items: center;
-    background: var(--card);
+    background: var(--m3-surface);
     padding: 20px 16px;
-    margin-bottom: 8px;
-    gap: 14px;
+    margin: 12px 16px;
+    border-radius: var(--m3-shape-lg);
+    gap: 16px;
 }
-
 .profile-avatar {
-    width: 56px;
-    height: 56px;
-    border-radius: 50%;
-    background: #e8e8e8;
+    width: 60px; height: 60px;
+    border-radius: var(--m3-shape-full);
+    background: var(--m3-primary-container);
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 28px;
+    color: var(--m3-on-primary-container);
+    flex-shrink: 0;
     overflow: hidden;
 }
-
-.profile-info {
-    flex: 1;
-}
-
-.profile-name {
-    font-size: 18px;
-    font-weight: 500;
-}
-
-.profile-account {
-    font-size: 13px;
-    color: var(--gray);
-    margin-top: 2px;
-}
+.profile-info { flex: 1; }
+.profile-name { font-size: var(--m3-title-lg); font-weight: 500; }
+.profile-account { font-size: var(--m3-body-sm); color: var(--m3-on-surface-variant); margin-top: 2px; }
 
 .profile-menu {
-    background: var(--card);
+    background: var(--m3-surface);
+    margin: 0 16px;
+    border-radius: var(--m3-shape-lg);
+    overflow: hidden;
 }
-
 .profile-item {
     display: flex;
     align-items: center;
     padding: 14px 16px;
-    border-bottom: 0.5px solid var(--border);
+    gap: 14px;
     cursor: pointer;
-    gap: 8px;
+    transition: background 0.15s;
+    font-size: var(--m3-body-lg);
 }
-
-.profile-item:active {
-    background: #f0f0f0;
-}
-
+.profile-item:active { background: var(--m3-state-press); }
+.profile-item-icon { color: var(--m3-on-surface-variant); }
 .profile-badge {
-    background: var(--danger);
-    color: white;
-    font-size: 11px;
-    min-width: 18px;
-    height: 18px;
-    border-radius: 9px;
+    background: var(--m3-error);
+    color: var(--m3-on-error);
+    font-size: var(--m3-label-sm);
+    font-weight: 500;
+    min-width: 20px;
+    height: 20px;
+    border-radius: var(--m3-shape-full);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -1022,64 +627,72 @@ body {
     padding: 0 6px;
 }
 
-/* ============================================================
-   Sign Result
-   ============================================================ */
-
-.sign-result-item {
+/* ---------- Friend Cards ---------- */
+.friend-card {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    padding: 12px 0;
-    border-bottom: 0.5px solid var(--border);
-    font-size: 15px;
+    background: var(--m3-surface);
+    margin: 0 16px 2px;
+    padding: 14px 12px;
+    border-radius: var(--m3-shape-md);
+    gap: 14px;
 }
-
-.text-success {
-    color: var(--success);
-    font-weight: 500;
+.friend-avatar {
+    width: 46px; height: 46px;
+    border-radius: var(--m3-shape-full);
+    background: var(--m3-surface-container-high);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    color: var(--m3-on-surface-variant);
+    flex-shrink: 0;
+    overflow: hidden;
 }
+.friend-info { flex: 1; min-width: 0; }
+.friend-name { font-size: var(--m3-body-lg); display: block; }
+.friend-account { font-size: var(--m3-body-sm); color: var(--m3-on-surface-variant); margin-top: 1px; display: block; }
 
-.text-fail {
-    color: var(--danger);
-    font-weight: 500;
+/* ---------- Scan Page ---------- */
+.scan-page-content { padding-bottom: 120px; }
+
+.scan-action-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: var(--m3-surface);
+    margin: 8px 16px;
+    border-radius: var(--m3-shape-lg);
 }
+.scan-action-title { font-size: var(--m3-title-lg); font-weight: 500; }
 
-/* ============================================================
-   Disabled button
-   ============================================================ */
-
-.btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+/* Camera */
+.scan-camera-bar {
+    margin: 0 16px;
+    border-radius: var(--m3-shape-md);
+    overflow: hidden;
+    background: #000;
+    height: 220px;
 }
+.scan-video { width: 100%; height: 100%; object-fit: cover; }
 
-/* ============================================================
-   Toast show class
-   ============================================================ */
-
-.toast.show {
-    opacity: 1;
-}
-
-/* ============================================================
-   Gesture Pattern Lock (canvas-based)
-   ============================================================ */
-
+/* Gesture */
 .gesture-area {
     margin: 8px 16px;
-    background: #fff;
-    border-radius: 12px;
-    padding: 16px;
+    background: var(--m3-surface);
+    border-radius: var(--m3-shape-lg);
+    padding: 20px;
     text-align: center;
 }
-
 .gesture-hint {
-    font-size: 13px;
-    color: #888;
-    margin-bottom: 12px;
+    font-size: var(--m3-body-md);
+    color: var(--m3-on-surface-variant);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
-
 .gesture-canvas-main {
     display: block;
     width: 260px;
@@ -1088,294 +701,205 @@ body {
     touch-action: none;
     user-select: none;
     -webkit-user-select: none;
-    border-radius: 12px;
-    background: #fafafa;
+    border-radius: var(--m3-shape-lg);
+    background: var(--m3-surface-container-low);
 }
-
 .gesture-code-display {
-    margin-top: 12px;
-    font-size: 14px;
+    margin-top: 14px;
+    font-size: var(--m3-body-lg);
     font-weight: 500;
-    color: #000;
+    color: var(--m3-on-surface);
     display: flex;
     align-items: center;
     justify-content: center;
-}
-
-.gesture-code-wait {
-    color: #ccc;
-    font-weight: 400;
-}
-
-/* ---------- 位置签到区 ---------- */
-.location-area {
-    margin: 8px 16px;
-}
-
-.location-search-bar {
-    display: flex;
     gap: 8px;
-    margin-bottom: 8px;
 }
+.gesture-code-wait { color: var(--m3-outline-variant); font-weight: 400; }
 
+/* Location */
+.location-area { margin: 8px 16px; }
+.location-search-bar { display: flex; gap: 8px; margin-bottom: 8px; }
 .scan-location-map {
     width: 100%;
-    height: 220px;
-    border-radius: 12px;
-    background: #e8e8e8;
+    height: 260px;
+    border-radius: var(--m3-shape-md);
+    background: var(--m3-surface-container-high);
 }
-
 .location-info-bar {
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    gap: 6px;
     padding: 10px 4px;
-    font-size: 13px;
-    color: #333;
+    font-size: var(--m3-body-sm);
+    color: var(--m3-on-surface);
 }
 
-/* ============================================================
-   Scan & Proxy Sign Page
-   ============================================================ */
-
-.scan-page-content {
-    padding-bottom: 100px;
-    background: #f5f6f8;
-}
-
-/* ---------- 操作标题栏 ---------- */
-.scan-action-bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 16px;
-    background: #fff;
-    margin: 12px 16px 0;
-    border-radius: 12px;
-}
-
-.scan-action-title {
-    font-size: 18px;
-    font-weight: 700;
-    color: #000;
-}
-
-.btn-scan-go {
-    padding: 8px 20px;
-    border: none;
-    border-radius: 20px;
-    background: #00b578;
-    color: #fff;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-}
-
-.btn-scan-go:active { opacity: 0.85; }
-
-.btn-scan-stop {
-    padding: 8px 20px;
-    border: 1px solid var(--danger);
-    border-radius: 20px;
-    background: #fff;
-    color: var(--danger);
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-}
-
-/* ---------- 摄像头条 ---------- */
-.scan-camera-bar {
-    margin: 8px 16px;
-    border-radius: 12px;
+/* Friend Select List */
+.scan-friend-list {
+    background: var(--m3-surface);
+    margin: 10px 16px;
+    border-radius: var(--m3-shape-lg);
     overflow: hidden;
-    background: #000;
-    height: 200px;
 }
-
-.scan-video {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-
-/* ---------- 好友多选列表 ---------- */
 .scan-friend-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 16px 8px;
-    font-size: 14px;
+    padding: 14px 16px 10px;
+    font-size: var(--m3-title-sm);
     font-weight: 500;
-    color: var(--text);
-    border-bottom: 0.5px solid #f0f0f0;
+    color: var(--m3-on-surface);
 }
-
-.scan-friend-refresh {
-    font-size: 12px;
-    color: var(--primary);
-    cursor: pointer;
-    font-weight: 400;
-}
-
-.scan-friend-refresh:active { opacity: 0.7; }
-
-.scan-friend-list {
-    background: #fff;
-    margin: 8px 16px;
-    border-radius: 12px;
-    overflow: hidden;
-}
-
 .scan-friend-empty {
     padding: 40px 16px;
     text-align: center;
-    color: #aaa;
-    font-size: 14px;
+    color: var(--m3-on-surface-variant);
+    font-size: var(--m3-body-md);
 }
-
 .scan-friend-item {
     display: flex;
     align-items: center;
-    padding: 14px 16px;
+    padding: 12px 16px;
     gap: 12px;
     cursor: pointer;
     transition: background 0.15s;
-    border-bottom: 0.5px solid #f0f0f0;
 }
+.scan-friend-item:active { background: var(--m3-state-press); }
 
-.scan-friend-item:last-child { border-bottom: none; }
-
-.scan-friend-item:active { background: #fafafa; }
-
-/* ---------- 勾选框 ---------- */
+/* Checkbox */
 .sfi-check {
-    width: 22px;
-    height: 22px;
-    border-radius: 4px;
-    border: 1.5px solid #d0d0d0;
+    width: 22px; height: 22px;
+    border-radius: var(--m3-shape-full);
+    border: 2px solid var(--m3-outline-variant);
     flex-shrink: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 13px;
-    color: transparent;
     transition: all 0.2s;
 }
-
 .sfi-check.active {
-    background: var(--success);
-    border-color: var(--success);
-    color: #fff;
+    background: var(--m3-success);
+    border-color: var(--m3-success);
+    color: var(--m3-on-success);
 }
 
-/* ---------- 头像 ---------- */
+/* Avatar */
 .sfi-avatar {
     position: relative;
-    width: 42px;
-    height: 42px;
-    border-radius: 50%;
-    background: #e8e8e8;
+    width: 40px; height: 40px;
+    border-radius: var(--m3-shape-full);
+    background: var(--m3-surface-container-high);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 18px;
-    color: #666;
+    font-size: 16px;
+    color: var(--m3-on-surface-variant);
     flex-shrink: 0;
     overflow: hidden;
 }
-
-/* ---------- 信息区 ---------- */
-.sfi-info {
-    flex: 1;
-    min-width: 0;
-}
-
-.sfi-name-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    flex-wrap: wrap;
-}
-
-.sfi-name {
-    font-size: 15px;
-    font-weight: 500;
-    color: #000;
-}
-
+.sfi-info { flex: 1; min-width: 0; }
+.sfi-name-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.sfi-name { font-size: var(--m3-body-lg); font-weight: 500; color: var(--m3-on-surface); }
 .sfi-tag-free {
     font-size: 10px;
     padding: 1px 6px;
-    border-radius: 4px;
-    background: #f0f0f0;
-    color: #999;
+    border-radius: var(--m3-shape-xs);
+    background: var(--m3-surface-container-high);
+    color: var(--m3-on-surface-variant);
 }
-
 .sfi-tag-coin {
-    font-size: 11px;
+    font-size: 10px;
     padding: 2px 8px;
-    border-radius: 10px;
-    background: #e6f4ff;
-    color: var(--primary);
+    border-radius: var(--m3-shape-full);
+    background: var(--m3-primary-container);
+    color: var(--m3-on-primary-container);
     font-weight: 500;
 }
+.sfi-phone { font-size: var(--m3-label-md); color: var(--m3-on-surface-variant); margin-top: 2px; }
 
-.sfi-phone {
-    font-size: 12px;
-    color: #999;
-    margin-top: 3px;
-}
-
-/* ---------- 签到日志 ---------- */
-.scan-log {
-    margin: 8px 16px;
-}
-
-.scan-log-title {
-    font-size: 15px;
-    font-weight: 600;
-    color: #000;
-    margin-bottom: 8px;
-}
-
+/* Sign Log */
+.scan-log { margin: 10px 16px; }
+.scan-log-title { font-size: var(--m3-title-sm); font-weight: 600; color: var(--m3-on-surface); margin-bottom: 8px; }
 .scan-log-box {
-    background: #fff;
-    border-radius: 12px;
-    min-height: 180px;
-    max-height: 280px;
+    background: var(--m3-surface);
+    border-radius: var(--m3-shape-md);
+    min-height: 160px;
+    max-height: 260px;
     overflow-y: auto;
     padding: 12px 14px;
 }
-
 .scan-log-empty {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     padding: 40px 0;
-    color: #bbb;
-    font-size: 13px;
+    color: var(--m3-on-surface-variant);
+    font-size: var(--m3-body-sm);
 }
-
-.scan-log-empty-icon {
-    margin-bottom: 10px;
-    opacity: 0.5;
-}
-
+.scan-log-empty-icon { margin-bottom: 10px; opacity: 0.5; }
 .scan-log-item {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 4px 0;
-    font-size: 13px;
+    padding: 5px 0;
+    font-size: var(--m3-body-sm);
     line-height: 1.6;
 }
-
-.log-time { color: #bbb; font-size: 11px; flex-shrink: 0; width: 56px; }
-.log-name { flex-shrink: 0; min-width: 60px; }
+.log-time { color: var(--m3-outline); font-size: 11px; flex-shrink: 0; width: 56px; }
+.log-name { flex-shrink: 0; min-width: 60px; font-weight: 500; }
 .log-status { flex: 1; }
+.log-success .log-status { color: var(--m3-success); }
+.log-fail .log-status { color: var(--m3-error); }
+.log-info .log-status { color: var(--m3-on-surface-variant); }
 
-.log-success .log-status { color: var(--success); }
-.log-fail .log-status { color: var(--danger); }
-.log-info .log-status { color: #999; }
+/* ---------- Sign Result ---------- */
+.sign-result-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    font-size: var(--m3-body-lg);
+}
+.text-success { color: var(--m3-success); font-weight: 500; }
+.text-fail    { color: var(--m3-error); font-weight: 500; }
+
+/* ---------- Toast ---------- */
+.toast {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--m3-on-surface);
+    color: var(--m3-surface);
+    padding: 12px 24px;
+    border-radius: var(--m3-shape-sm);
+    font-size: var(--m3-body-md);
+    z-index: 2000;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+    white-space: nowrap;
+}
+.toast.show { opacity: 1; }
+
+/* ---------- Loading Spinner ---------- */
+.loading { text-align: center; padding: 40px 0; }
+.spinner {
+    display: inline-block;
+    width: 32px; height: 32px;
+    border: 3px solid var(--m3-outline-variant);
+    border-top-color: var(--m3-primary);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---------- Responsive ---------- */
+@media (min-width: 501px) {
+    .app { border-left: 1px solid var(--m3-outline-variant); border-right: 1px solid var(--m3-outline-variant); }
+}
+
+/* ---------- Utility ---------- */
+.page-content { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.w-full { width: 100%; }

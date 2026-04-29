@@ -7,6 +7,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <title>超星学习通签到</title>
     <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block">
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/vue@3.4/dist/vue.global.prod.js"></script>
 </head>
@@ -16,18 +17,26 @@
     <!-- ====== Login Page ====== -->
     <section v-if="currentPage === 'login'" class="page active">
         <div class="login-container">
-            <div class="login-logo">&#x1F4DD;</div>
+            <div class="login-icon">
+                <span class="material-symbols-outlined icon-64">edit_note</span>
+            </div>
             <h1 class="login-title">超星学习通签到</h1>
-            <p class="login-subtitle">Universal Platform</p>
+            <p class="login-subtitle">多合一签到 · 好友代签</p>
             <div class="form-group">
-                <input type="tel" v-model="loginPhone" class="input" placeholder="手机号" maxlength="11" autocomplete="tel"
+                <span class="input-icon">
+                    <span class="material-symbols-outlined">call</span>
+                </span>
+                <input type="tel" v-model="loginPhone" class="input has-icon" placeholder="手机号" maxlength="11" autocomplete="tel"
                        @keyup.enter="doLogin">
             </div>
             <div class="form-group">
-                <input type="password" v-model="loginPassword" class="input" placeholder="密码" autocomplete="current-password"
+                <span class="input-icon">
+                    <span class="material-symbols-outlined">lock</span>
+                </span>
+                <input type="password" v-model="loginPassword" class="input has-icon" placeholder="密码" autocomplete="current-password"
                        @keyup.enter="doLogin">
             </div>
-            <button class="btn btn-primary" @click="doLogin" :disabled="loggingIn">
+            <button class="btn btn-filled" @click="doLogin" :disabled="loggingIn">
                 {{ loggingIn ? '登录中...' : '登 录' }}
             </button>
             <p class="login-hint">使用超星学习通账号密码登录</p>
@@ -49,12 +58,12 @@
         <div class="page-content">
             <div class="action-cards">
                 <div class="action-card" @click="currentPage = 'courses'">
-                    <span class="action-icon">&#x1F4DA;</span>
+                    <span class="material-symbols-outlined action-icon">menu_book</span>
                     <span class="action-label">我的课程</span>
                     <span class="action-desc">查看签到任务</span>
                 </div>
                 <div class="action-card" @click="currentPage = 'friends'">
-                    <span class="action-icon">&#x1F46B;</span>
+                    <span class="material-symbols-outlined action-icon">group</span>
                     <span class="action-label">好友管理</span>
                     <span class="action-desc" v-if="friends.length">共 {{ friends.length }} 位好友</span>
                     <span class="action-desc" v-else>添加好友</span>
@@ -65,16 +74,20 @@
             <div class="home-active-section">
                 <div class="loading" v-if="loadingActive"><span class="spinner"></span></div>
                 <div v-else-if="activeCourses.length > 0">
-                <div class="section-title">有签到活动的课程<span class="scan-friend-refresh" @click="loadActiveCourses()" style="margin-left:8px">&#x21BB; 刷新</span></div>
+                <div class="section-title">
+                    <span class="material-symbols-outlined section-icon">notifications_active</span>
+                    有签到活动的课程
+                    <span class="scan-friend-refresh" @click="loadActiveCourses()"><span class="material-symbols-outlined" style="font-size:14px;vertical-align:-2px">refresh</span> 刷新</span>
+                </div>
                 <div v-for="co in activeCourses" :key="co.course_id" class="course-item"
                      @click="openTasks(co)">
-                    <span class="course-icon">{{ courseIcons[co.course_id.charCodeAt(0) % 8] }}</span>
+                    <span class="material-symbols-outlined course-icon">{{ courseIcons[co.course_id.charCodeAt(0) % 8] }}</span>
                     <div class="course-info">
                         <span class="course-name">{{ co.name }}</span>
                         <span class="course-teacher" v-if="co.teacher">{{ co.teacher }}</span>
                     </div>
-                    <span class="home-badge">{{ co.active_count }} 个活动</span>
-                    <span class="course-arrow">&#x203A;</span>
+                    <span class="chip chip-primary">{{ co.active_count }} 个活动</span>
+                    <span class="material-symbols-outlined item-arrow">chevron_right</span>
                 </div>
             </div>
         </div>
@@ -83,26 +96,28 @@
     <!-- ====== Courses Page ====== -->
     <section v-if="currentPage === 'courses'" class="page active">
         <nav class="navbar">
-            <span class="navbar-back" @click="currentPage = 'home'">&#x2039; 首页</span>
+            <span class="nav-btn" @click="currentPage = 'home'"><span class="material-symbols-outlined">chevron_left</span></span>
             <span class="navbar-title">课程</span>
-            <span></span>
+            <span class="nav-btn invisible"><span class="material-symbols-outlined">more_horiz</span></span>
         </nav>
         <div class="search-box">
-            <input type="text" v-model="courseSearch" class="input" placeholder="搜索课程" @input="filterCourses">
+            <span class="material-symbols-outlined search-icon">search</span>
+            <input type="text" v-model="courseSearch" class="input" placeholder="搜索课程">
         </div>
         <div class="page-content">
             <div class="loading" v-if="loadingCourses"><span class="spinner"></span></div>
             <div v-else-if="filteredCourses.length === 0" class="empty-state">
+                <span class="material-symbols-outlined empty-icon">school</span>
                 <p>暂无课程</p>
             </div>
             <div v-for="co in filteredCourses" :key="co.course_id" class="course-item"
                  @click="openTasks(co)">
-                <span class="course-icon">{{ courseIcons[co.course_id.charCodeAt(0) % 8] }}</span>
+                <span class="material-symbols-outlined course-icon">{{ courseIcons[co.course_id.charCodeAt(0) % 8] }}</span>
                 <div class="course-info">
                     <span class="course-name">{{ co.name }}</span>
                     <span class="course-teacher" v-if="co.teacher">{{ co.teacher }}</span>
                 </div>
-                <span class="course-arrow">&#x203A;</span>
+                <span class="material-symbols-outlined item-arrow">chevron_right</span>
             </div>
         </div>
     </section>
@@ -110,13 +125,14 @@
     <!-- ====== Tasks Page ====== -->
     <section v-if="currentPage === 'tasks'" class="page active">
         <nav class="navbar">
-            <span class="navbar-back" @click="currentPage = 'courses'">&#x2039; 返回</span>
+            <span class="nav-btn" @click="currentPage = 'courses'"><span class="material-symbols-outlined">chevron_left</span></span>
             <span class="navbar-title">{{ currentCourseName }}</span>
-            <span></span>
+            <span class="nav-btn invisible"><span class="material-symbols-outlined">more_horiz</span></span>
         </nav>
         <div class="page-content">
             <div v-if="loadingTasks" class="loading"><span class="spinner"></span></div>
             <div v-else-if="activeTasks.length === 0 && endedTasks.length === 0" class="empty-state">
+                <span class="material-symbols-outlined empty-icon">task_alt</span>
                 <p>当前没有签到任务</p>
             </div>
             <template v-else>
@@ -127,21 +143,21 @@
                         <span class="task-time">{{ t.start_time }}</span>
                     </div>
                     <span v-if="t.signed" style="display:flex;gap:6px;flex-shrink:0">
-                        <span class="btn btn-small btn-badge badge-signed" style="opacity:0.7">已签</span>
-                        <button v-if="t.sign_type !== 'normal' && t.sign_type !== 'photo'" class="btn btn-small btn-badge badge-proxy"
+                        <span class="chip chip-success" style="opacity:0.7">已签</span>
+                        <button v-if="t.sign_type !== 'normal' && t.sign_type !== 'photo'" class="chip chip-warning chip-btn"
                                 @click="startProxySign(t)">代签</button>
                     </span>
-                    <button v-else class="btn btn-small btn-badge"
-                            :class="'badge-' + t.sign_type"
+                    <button v-else class="chip chip-btn"
+                            :class="'chip-' + t.sign_type"
                             @click="startSign(t)">{{ typeLabels[t.sign_type] }}</button>
                 </div>
-                <div class="section-title ended" v-if="endedTasks.length">已结束 ({{ endedTasks.length }})</div>
+                <div class="section-title section-ended" v-if="endedTasks.length">已结束 ({{ endedTasks.length }})</div>
                 <div v-for="t in endedTasks" :key="t.active_id" class="task-item ended-item">
                     <div class="task-info">
                         <span class="task-name">{{ t.name }}</span>
                         <span class="task-time">{{ t.start_time }}</span>
                     </div>
-                    <span class="badge badge-ended">{{ typeLabels[t.sign_type] }}</span>
+                    <span class="chip chip-muted">{{ typeLabels[t.sign_type] }}</span>
                 </div>
             </template>
         </div>
@@ -150,17 +166,18 @@
     <!-- ====== Scan & Proxy Sign Page ====== -->
     <section v-if="currentPage === 'scan'" class="page active">
         <nav class="navbar">
-            <span class="navbar-back" @click="exitScanPage">&#x2039; 返回</span>
+            <span class="nav-btn" @click="exitScanPage"><span class="material-symbols-outlined">chevron_left</span></span>
             <span class="navbar-title">{{ signMode === 'code' ? '签到码签到' : signMode === 'gesture' ? '手势签到' : signMode === 'location' ? '位置签到' : '扫二维码签到' }}</span>
-            <span></span>
+            <span class="nav-btn invisible"><span class="material-symbols-outlined">more_horiz</span></span>
         </nav>
         <div class="page-content scan-page-content">
 
             <!-- 操作标题栏：左标题 + 右按钮（二维码模式） -->
             <div v-if="signMode === 'qrcode'" class="scan-action-bar">
                 <span class="scan-action-title">帮助同学</span>
-                <button v-if="!cameraActive" class="btn-scan-go" @click="startScanCamera">扫描二维码</button>
-                <button v-else class="btn-scan-stop" @click="stopScanCamera">关闭摄像头</button>
+                <button v-if="!cameraActive" class="btn btn-filled btn-scan" @click="startScanCamera">
+                    <span class="material-symbols-outlined" style="font-size:18px;vertical-align:-4px;margin-right:4px">qr_code_scanner</span>扫描二维码</button>
+                <button v-else class="btn btn-outlined btn-scan-stop" @click="stopScanCamera">关闭摄像头</button>
             </div>
 
             <!-- 签到码输入栏（签到码模式） -->
@@ -168,9 +185,9 @@
                 <span class="scan-action-title">帮助同学</span>
                 <div style="display:flex;gap:8px;flex:1;margin-left:12px">
                     <input type="text" v-model="signCodeInput" class="input" placeholder="请输入签到码"
-                           style="flex:1;height:36px" @keyup.enter="doCodeSign">
-                    <button class="btn-scan-go" @click="doCodeSign" :disabled="signing"
-                            style="flex-shrink:0;white-space:nowrap;padding:8px 16px">
+                           style="flex:1;height:40px" @keyup.enter="doCodeSign">
+                    <button class="btn btn-filled" @click="doCodeSign" :disabled="signing"
+                            style="flex-shrink:0;white-space:nowrap;padding:0 20px">
                         {{ signing ? '签到中...' : '确认签到' }}
                     </button>
                 </div>
@@ -184,7 +201,7 @@
 
             <!-- 手势签到区 -->
             <div v-if="signMode === 'gesture'" class="gesture-area">
-                <p class="gesture-hint">重绘发起者传达的手势图案完成签到</p>
+                <p class="gesture-hint"><span class="material-symbols-outlined" style="font-size:16px;vertical-align:-3px;margin-right:4px">gesture</span>重绘发起者传达的手势图案完成签到</p>
                 <canvas ref="gestureCanvas" class="gesture-canvas-main"
                         @touchstart.prevent="gestureStart"
                         @touchmove.prevent="gestureMove"
@@ -195,10 +212,10 @@
                         @mouseleave.prevent="gestureEnd"></canvas>
                 <div class="gesture-code-display" v-if="gestureCode">
                     手势码: {{ gestureCode }}
-                    <button class="btn-scan-go" @click="doGestureSign" :disabled="signing" style="margin-left:12px;padding:6px 16px">
+                    <button class="btn btn-filled" @click="doGestureSign" :disabled="signing" style="margin-left:12px;padding:6px 20px;font-size:13px">
                         {{ signing ? '签到中...' : '确认签到' }}
                     </button>
-                    <button class="btn-scan-stop" @click="gestureReset" style="margin-left:8px;padding:6px 16px">重置</button>
+                    <button class="btn btn-outlined" @click="gestureReset" style="margin-left:8px;padding:6px 20px;font-size:13px">重置</button>
                 </div>
                 <div v-else class="gesture-code-display gesture-code-wait">
                     请绘制手势图案
@@ -209,18 +226,19 @@
             <div v-if="signMode === 'location'" class="location-area">
                 <div class="location-search-bar">
                     <input type="text" v-model="locationSearch" class="input" placeholder="搜索地点"
-                           @keyup.enter="doLocationSearch" style="flex:1;height:36px">
-                    <button class="btn-scan-go" @click="doLocationSearch" style="flex-shrink:0;padding:6px 14px;font-size:13px">搜索</button>
+                           @keyup.enter="doLocationSearch" style="flex:1;height:40px">
+                    <button class="btn btn-filled" @click="doLocationSearch" style="flex-shrink:0;padding:0 20px">搜索</button>
                 </div>
                 <div id="scan-location-map" class="scan-location-map"></div>
                 <div class="location-info-bar" v-if="locationName">
+                    <span class="material-symbols-outlined" style="font-size:16px;vertical-align:-3px;margin-right:4px;color:var(--m3-primary)">location_on</span>
                     <span>{{ locationName }}</span>
-                    <span style="color:#999;font-size:12px">{{ locationLng }}, {{ locationLat }}</span>
+                    <span style="color:var(--m3-on-surface-variant);font-size:11px">{{ locationLng }}, {{ locationLat }}</span>
                 </div>
-                <div class="location-info-bar" v-else style="color:#ccc">
+                <div class="location-info-bar" v-else style="color:var(--m3-outline)">
                     点击地图选择位置或搜索地点
                 </div>
-                <button class="btn btn-primary" @click="doLocationSign" :disabled="signing || !locationLng"
+                <button class="btn btn-filled" @click="doLocationSign" :disabled="signing || !locationLng"
                         style="margin:12px 16px;width:calc(100% - 32px)">
                     {{ signing ? '签到中...' : '确认签到' }}
                 </button>
@@ -230,10 +248,11 @@
             <div class="scan-friend-list">
                 <div class="scan-friend-header">
                     <span>选择代签好友</span>
-                    <span class="scan-friend-refresh" @click="loadFriends(); toast('刷新中...')">&#x21BB; 刷新</span>
+                    <span class="scan-friend-refresh" @click="loadFriends(); toast('刷新中...')"><span class="material-symbols-outlined" style="font-size:14px;vertical-align:-2px">refresh</span> 刷新</span>
                 </div>
                 <div v-if="loadingFriends" class="loading"><span class="spinner"></span></div>
                 <div v-else-if="friends.length === 0" class="scan-friend-empty">
+                    <span class="material-symbols-outlined" style="font-size:40px;display:block;margin-bottom:8px;color:var(--m3-outline)">person_off</span>
                     <p>暂无好友，请先在「我的」页面添加好友</p>
                 </div>
                 <div v-for="f in friends" :key="f.id" class="scan-friend-item"
@@ -241,7 +260,7 @@
                      @click="toggleFriend(f.id)">
                     <!-- 勾选框 -->
                     <div class="sfi-check" :class="{active: selectedFriends.includes(f.id)}">
-                        <span v-if="selectedFriends.includes(f.id)">&#x2713;</span>
+                        <span v-if="selectedFriends.includes(f.id)" class="material-symbols-outlined" style="font-size:16px">check</span>
                     </div>
                     <!-- 头像 -->
                     <div class="sfi-avatar">
@@ -267,10 +286,10 @@
                     <div v-if="scanLogs.length === 0" class="scan-log-empty">
                         <div class="scan-log-empty-icon">
                             <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-                                <rect x="8" y="4" width="32" height="40" rx="4" stroke="#D0D0D0" stroke-width="2" fill="#F5F5F5"/>
-                                <line x1="16" y1="16" x2="32" y2="16" stroke="#DDD" stroke-width="2" stroke-linecap="round"/>
-                                <line x1="16" y1="22" x2="28" y2="22" stroke="#DDD" stroke-width="2" stroke-linecap="round"/>
-                                <line x1="16" y1="28" x2="24" y2="28" stroke="#DDD" stroke-width="2" stroke-linecap="round"/>
+                                <rect x="8" y="4" width="32" height="40" rx="4" stroke="#C4C7C5" stroke-width="1.5" fill="#F3F4F5"/>
+                                <line x1="16" y1="16" x2="32" y2="16" stroke="#C4C7C5" stroke-width="2" stroke-linecap="round"/>
+                                <line x1="16" y1="22" x2="28" y2="22" stroke="#C4C7C5" stroke-width="2" stroke-linecap="round"/>
+                                <line x1="16" y1="28" x2="24" y2="28" stroke="#C4C7C5" stroke-width="2" stroke-linecap="round"/>
                             </svg>
                         </div>
                         <p>暂无日志</p>
@@ -288,13 +307,14 @@
     <!-- ====== Friends Page ====== -->
     <section v-if="currentPage === 'friends'" class="page active">
         <nav class="navbar">
-            <span class="navbar-back" @click="currentPage = 'home'">&#x2039; 首页</span>
+            <span class="nav-btn" @click="currentPage = 'home'"><span class="material-symbols-outlined">chevron_left</span></span>
             <span class="navbar-title">我的好友</span>
-            <span class="navbar-right" @click="showAddFriendModal = true">添加好友</span>
+            <span class="nav-btn text-btn" @click="showAddFriendModal = true">添加好友</span>
         </nav>
         <div class="page-content">
             <div class="loading" v-if="loadingFriends"><span class="spinner"></span></div>
             <div v-else-if="friends.length === 0" class="empty-state">
+                <span class="material-symbols-outlined empty-icon">person_add</span>
                 <p>暂无好友，快去添加吧</p>
             </div>
             <div v-for="f in friends" :key="f.id" class="friend-card">
@@ -306,7 +326,7 @@
                     <span class="friend-name">{{ f.nickname }}</span>
                     <span class="friend-account">{{ f.supernova_account }}</span>
                 </div>
-                <button class="btn btn-small btn-outline" @click="deleteFriend(f)">删除</button>
+                <button class="btn btn-outlined btn-sm" @click="deleteFriend(f)">删除</button>
             </div>
         </div>
     </section>
@@ -314,9 +334,9 @@
     <!-- ====== Profile Page ====== -->
     <section v-if="currentPage === 'profile'" class="page active">
         <nav class="navbar">
-            <span class="navbar-back" @click="currentPage = 'home'">&#x2039; 首页</span>
+            <span class="nav-btn" @click="currentPage = 'home'"><span class="material-symbols-outlined">chevron_left</span></span>
             <span class="navbar-title">我的</span>
-            <span></span>
+            <span class="nav-btn invisible"><span class="material-symbols-outlined">more_horiz</span></span>
         </nav>
         <div class="page-content">
             <div class="profile-card">
@@ -331,12 +351,15 @@
             </div>
             <div class="profile-menu">
                 <div class="profile-item" @click="currentPage = 'friends'">
+                    <span class="material-symbols-outlined profile-item-icon">group</span>
                     <span>我的好友</span>
                     <span class="profile-badge" v-if="friends.length">{{ friends.length }}</span>
-                    <span class="course-arrow">&#x203A;</span>
+                    <span class="material-symbols-outlined item-arrow">chevron_right</span>
                 </div>
             </div>
-            <button class="btn btn-primary" @click="doLogout" style="margin-top: 24px;">退出登录</button>
+            <button class="btn btn-outlined" @click="doLogout" style="margin: 24px 16px;width:calc(100% - 32px)">
+                <span class="material-symbols-outlined" style="font-size:18px;vertical-align:-4px;margin-right:6px">logout</span>退出登录
+            </button>
         </div>
     </section>
 
@@ -345,14 +368,14 @@
         <div class="modal-mask" @click="showAddFriendModal = false"></div>
         <div class="modal-content">
             <div class="modal-header">
-                <span>添加好友</span>
-                <span class="modal-close" @click="showAddFriendModal = false">&#x2715;</span>
+                <span class="modal-title">添加好友</span>
+                <span class="modal-close" @click="showAddFriendModal = false"><span class="material-symbols-outlined">close</span></span>
             </div>
             <div style="padding:16px">
                 <input type="text" v-model="addFriendAccount" class="input"
                        placeholder="请输入好友的超星账号 (UID)"
                        @keyup.enter="doAddFriend">
-                <button class="btn btn-primary" @click="doAddFriend"
+                <button class="btn btn-filled" @click="doAddFriend"
                         :disabled="addingFriend" style="margin-top:12px;width:100%">
                     {{ addingFriend ? '添加中...' : '搜索并添加' }}
                 </button>
@@ -365,8 +388,8 @@
         <div class="modal-mask" @click="showSignResult = false"></div>
         <div class="modal-content">
             <div class="modal-header">
-                <span>签到结果</span>
-                <span class="modal-close" @click="showSignResult = false">&#x2715;</span>
+                <span class="modal-title">签到结果</span>
+                <span class="modal-close" @click="showSignResult = false"><span class="material-symbols-outlined">close</span></span>
             </div>
             <div style="padding:16px">
                 <div class="sign-result-item">
@@ -379,7 +402,7 @@
                     <span>{{ p.nickname || p.supernova_account }}</span>
                     <span :class="p.result === 'success' ? 'text-success' : 'text-fail'">{{ p.result }}</span>
                 </div>
-                <button class="btn btn-primary" @click="showSignResult = false; currentPage = 'home';"
+                <button class="btn btn-filled" @click="showSignResult = false; currentPage = 'home';"
                         style="margin-top:16px;width:100%">完成</button>
             </div>
         </div>
@@ -391,15 +414,15 @@
     <!-- ====== Bottom Nav ====== -->
     <nav v-if="showNav" class="bottom-nav">
         <div class="nav-item" :class="{active: currentPage === 'home'}" @click="currentPage = 'home'">
-            <span class="nav-icon">&#x1F3E0;</span>
+            <span class="material-symbols-outlined nav-icon">home</span>
             <span class="nav-label">首页</span>
         </div>
         <div class="nav-item" :class="{active: currentPage === 'courses'}" @click="currentPage = 'courses'; loadCourses()">
-            <span class="nav-icon">&#x1F4DA;</span>
+            <span class="material-symbols-outlined nav-icon">menu_book</span>
             <span class="nav-label">课程</span>
         </div>
         <div class="nav-item" :class="{active: currentPage === 'profile'}" @click="currentPage = 'profile'">
-            <span class="nav-icon">&#x1F464;</span>
+            <span class="material-symbols-outlined nav-icon">person</span>
             <span class="nav-label">我的</span>
         </div>
     </nav>
