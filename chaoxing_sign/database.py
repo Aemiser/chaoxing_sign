@@ -19,7 +19,7 @@ def init_db(config: dict):
         url,
         pool_size=10,
         max_overflow=20,
-        pool_pre_ping=False,
+        pool_pre_ping=True,
         pool_recycle=3600,
         connect_args={"connect_timeout": 5},
     )

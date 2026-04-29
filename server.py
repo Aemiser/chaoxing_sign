@@ -4,6 +4,7 @@ from __future__ import annotations
 import uuid
 import json
 import re
+import time
 import threading
 import logging
 from pathlib import Path
@@ -13,6 +14,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Query, Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
@@ -22,8 +24,12 @@ from chaoxing_sign import database as db_module
 from chaoxing_sign.models import Base, User, Friendship, ProxyRecord, UserSession
 from chaoxing_sign.auth import create_jwt, get_current_user_id
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 log = logging.getLogger("server")
-logging.basicConfig(level=logging.INFO)
 
 @asynccontextmanager
 async def lifespan(application: FastAPI):
@@ -44,12 +50,20 @@ async def lifespan(application: FastAPI):
 
 app = FastAPI(title="超星学习通签到", version="3.0", lifespan=lifespan)
 
-# 静态文件
-static_dir = Path(__file__).parent / "static"
-app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+# CORS 中间件 — 允许前端跨域访问
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Session 池: token → ChaoxingClient
 sessions: dict[str, ChaoxingClient] = {}
+_session_times: dict[str, float] = {}  # token → 最后访问时间，用于 TTL 清理
+
+SESSION_TTL_SECONDS = 24 * 3600  # 24 小时后自动清理
 
 # DB 是否可用
 db_available = False
@@ -86,9 +100,35 @@ class QrcodeSignRequest(BaseModel):
 # 辅助函数
 # ================================================================
 
+def _mask_phone(phone: str) -> str:
+    """脱敏手机号，仅保留前 3 后 4 位"""
+    if len(phone) >= 8:
+        return f"{phone[:3]}****{phone[-4:]}"
+    return f"{phone[:1]}****" if len(phone) > 1 else "***"
+
+
+def _cleanup_expired_sessions():
+    """清理过期 session（在每次 API 调用时被动触发）"""
+    now = time.time()
+    expired = [
+        t for t, ts in _session_times.items()
+        if now - ts > SESSION_TTL_SECONDS
+    ]
+    for t in expired:
+        sessions.pop(t, None)
+        _session_times.pop(t, None)
+    if expired:
+        log.info("清理了 %d 个过期 session", len(expired))
+
+
 def get_client(token: str) -> ChaoxingClient:
     if token not in sessions:
         raise HTTPException(401, "未登录或 session 已过期")
+    _session_times[token] = time.time()
+    # 触发被动清理（概率约 1/20，避免每次都扫描）
+    import random
+    if random.random() < 0.05:
+        _cleanup_expired_sessions()
     return sessions[token]
 
 
@@ -114,12 +154,24 @@ def require_db():
 def download_avatar(uid: str, url: str) -> str:
     """下载用户头像到 static/images/avatars/ 目录，返回本地路由"""
     import requests as req
-    avatars_dir = static_dir / "images" / "avatars"
-    avatars_dir.mkdir(parents=True, exist_ok=True)
+    from urllib.parse import urlparse
 
-    # 处理协议相对 URL
+    # SSRF 防护：仅允许超星相关域名
     if url.startswith("//"):
         url = "https:" + url
+    if url and not url.startswith("/"):
+        parsed = urlparse(url)
+        allowed_hosts = {"chaoxing.com", "chaoxing.com.cn", "xuexitong.com"}
+        host_ok = any(
+            parsed.hostname and (parsed.hostname == h or parsed.hostname.endswith("." + h))
+            for h in allowed_hosts
+        )
+        if not host_ok:
+            log.warning("头像下载被阻止（非白名单域名）: %s", url[:120])
+            return ""
+
+    avatars_dir = static_dir / "images" / "avatars"
+    avatars_dir.mkdir(parents=True, exist_ok=True)
 
     ext = ".jpg"
     if url:
@@ -252,9 +304,10 @@ async def api_login(phone: str = Query(...), password: str = Query(...)):
                         # 会话有效，直接复用
                         token = uuid.uuid4().hex
                         sessions[token] = saved
+                        _session_times[token] = time.time()
                         save_user_session(db, user.id, saved)
                         jwt_token = create_jwt(user.id)
-                        log.info("复用已保存会话: phone=%s uid=%s", phone, saved.uid)
+                        log.info("复用已保存会话: phone=%s uid=%s", _mask_phone(phone), saved.uid)
                         return {
                             "ok": True,
                             "token": token,
@@ -285,6 +338,7 @@ async def api_login(phone: str = Query(...), password: str = Query(...)):
 
     token = uuid.uuid4().hex
     sessions[token] = client
+    _session_times[token] = time.time()
 
     result: dict = {
         "ok": True,
@@ -297,7 +351,7 @@ async def api_login(phone: str = Query(...), password: str = Query(...)):
         try:
             uid = client.uid
             if not uid:
-                log.error("登录成功但 uid 为空，跳过入库: phone=%s", phone)
+                log.error("登录成功但 uid 为空，跳过入库: phone=%s", _mask_phone(phone))
                 return result
 
             db = db_module.SessionLocal()
@@ -332,6 +386,7 @@ async def api_login(phone: str = Query(...), password: str = Query(...)):
 @app.post("/api/logout")
 async def api_logout(token: str = Query(...)):
     sessions.pop(token, None)
+    _session_times.pop(token, None)
     return {"ok": True}
 
 
@@ -763,6 +818,21 @@ async def api_public_config():
         "amap_key": cfg.get("amap_key", ""),
         "amap_version": cfg.get("amap_version", "2.0"),
     }
+
+
+# ================================================================
+# 健康检查
+# ================================================================
+
+@app.get("/health")
+async def health_check():
+    """提供存活与就绪状态，供监控/负载均衡探测"""
+    status = {
+        "status": "ok",
+        "sessions": len(sessions),
+        "db_available": db_available,
+    }
+    return status
 
 
 # ================================================================

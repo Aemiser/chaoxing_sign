@@ -54,6 +54,10 @@ class ChaoxingClient:
     def __init__(self):
         self.session = requests.Session()
         self.session.headers.update(HEADERS)
+        # 全局默认超时，防止个别请求永久挂起
+        adapter = requests.adapters.HTTPAdapter(max_retries=2)
+        self.session.mount("https://", adapter)
+        self.session.mount("http://", adapter)
         self._uid = ""
         self._name = ""
         self._logged_in = False
