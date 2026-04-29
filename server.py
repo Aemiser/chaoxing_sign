@@ -98,6 +98,7 @@ def get_or_create_user(db: Session, supernova_account: str, nickname: str = "") 
         db.commit()
         db.refresh(user)
     elif nickname and user.nickname == user.supernova_account:
+        # 仅当 nickname 仍是默认值（账号ID）时才自动更新，保留手动修改的昵称
         user.nickname = nickname
         db.commit()
     return user
@@ -113,17 +114,36 @@ def download_avatar(uid: str, url: str) -> str:
     import requests as req
     avatars_dir = static_dir / "images" / "avatars"
     avatars_dir.mkdir(parents=True, exist_ok=True)
+
+    # 处理协议相对 URL
+    if url.startswith("//"):
+        url = "https:" + url
+
     ext = ".jpg"
     if url:
-        # 尝试从 URL 推断扩展名
         base = url.split("?")[0]
         if base.endswith(".png"):
             ext = ".png"
         elif base.endswith(".gif"):
             ext = ".gif"
+
     filepath = avatars_dir / f"{uid}{ext}"
+
+    # 清理旧扩展名的头像文件
+    for old_ext in (".jpg", ".png", ".gif"):
+        if old_ext != ext:
+            old_path = avatars_dir / f"{uid}{old_ext}"
+            try:
+                old_path.unlink(missing_ok=True)
+            except Exception:
+                pass
+
     try:
-        resp = req.get(url, timeout=15)
+        headers = {
+            "User-Agent": "Dalvik/2.1.0 (Linux; U; Android 13; SM-G981B Build/TP1A.220624.014) com.chaoxing.mobile/ChaoXingStudy_3.0_48_20231201_android",
+            "Referer": "https://i.chaoxing.com/",
+        }
+        resp = req.get(url, timeout=15, headers=headers)
         if resp.ok:
             filepath.write_bytes(resp.content)
             return f"/static/images/avatars/{uid}{ext}"
@@ -214,7 +234,7 @@ async def api_login(phone: str = Query(...), password: str = Query(...)):
 
             # 下载头像到本地
             local_avatar = ""
-            if avatar_url and avatar_url.startswith("http"):
+            if avatar_url and (avatar_url.startswith("http") or avatar_url.startswith("//")):
                 local_avatar = download_avatar(uid, avatar_url)
 
             db = db_module.SessionLocal()
@@ -283,6 +303,7 @@ async def api_friends(
                 "id": u.id,
                 "supernova_account": u.supernova_account,
                 "nickname": u.nickname,
+                "avatar": u.avatar or "",
                 "location": u.location or "",
             }
             for _, u in friendships

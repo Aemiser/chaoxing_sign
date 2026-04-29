@@ -37,7 +37,10 @@
     <!-- ====== Home Page ====== -->
     <section v-if="currentPage === 'home'" class="page active">
         <div class="home-header">
-            <div class="home-avatar">{{ (user.nickname || name)[0] }}</div>
+            <div class="home-avatar">
+                <img v-if="user.avatar" :src="user.avatar" class="avatar-img" @error="user.avatar=''">
+                <span v-else>{{ (user.nickname || name)[0] }}</span>
+            </div>
             <div class="home-welcome">
                 <p class="home-greeting">你好，{{ user.nickname || name }}</p>
                 <p class="home-account">账号: {{ user.supernova_account || uid }}</p>
@@ -242,7 +245,8 @@
                     </div>
                     <!-- 头像 -->
                     <div class="sfi-avatar">
-                        <span>{{ f.nickname ? f.nickname[0] : '?' }}</span>
+                        <img v-if="f.avatar" :src="f.avatar" class="avatar-img" @error="f.avatar=''">
+                        <span v-else>{{ f.nickname ? f.nickname[0] : '?' }}</span>
                     </div>
                     <!-- 信息区 -->
                     <div class="sfi-info">
@@ -294,7 +298,10 @@
                 <p>暂无好友，快去添加吧</p>
             </div>
             <div v-for="f in friends" :key="f.id" class="friend-card">
-                <div class="friend-avatar">{{ f.nickname[0] }}</div>
+                <div class="friend-avatar">
+                    <img v-if="f.avatar" :src="f.avatar" class="avatar-img" @error="f.avatar=''">
+                    <span v-else>{{ f.nickname[0] }}</span>
+                </div>
                 <div class="friend-info">
                     <span class="friend-name">{{ f.nickname }}</span>
                     <span class="friend-account">{{ f.supernova_account }}</span>
@@ -313,7 +320,10 @@
         </nav>
         <div class="page-content">
             <div class="profile-card">
-                <div class="profile-avatar">{{ (user.nickname || name)[0] }}</div>
+                <div class="profile-avatar">
+                    <img v-if="user.avatar" :src="user.avatar" class="avatar-img" @error="user.avatar=''">
+                    <span v-else>{{ (user.nickname || name)[0] }}</span>
+                </div>
                 <div class="profile-info">
                     <p class="profile-name">{{ user.nickname || name }}</p>
                     <p class="profile-account">超星账号: {{ user.supernova_account || uid }}</p>
