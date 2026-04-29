@@ -291,6 +291,25 @@ def _bg_enrich_user(client: ChaoxingClient, uid: str, phone: str):
     threading.Thread(target=_run, daemon=True).start()
 
 
+def _download_and_save_avatar(db_session, user_id: int, uid: str, avatar_url: str):
+    """后台下载头像并写入用户记录"""
+    try:
+        local_avatar = download_avatar(uid, avatar_url)
+        if local_avatar:
+            user = db_session.query(User).filter(User.id == user_id).first()
+            if user:
+                user.avatar = local_avatar
+                db_session.commit()
+                log.info("头像下载成功: uid=%s path=%s", uid, local_avatar)
+    except Exception as e:
+        log.warning("后台头像下载失败: %s", e)
+    finally:
+        try:
+            db_session.close()
+        except Exception:
+            pass
+
+
 @app.post("/api/login")
 async def api_login(phone: str = Query(...), password: str = Query(...)):
     # --- 快速路径：尝试复用已保存的会话，免去 Chaoxing 登录 API 耗时 ---
@@ -359,13 +378,38 @@ async def api_login(phone: str = Query(...), password: str = Query(...)):
                 return result
 
             db = db_module.SessionLocal()
-            # 同步：用已有信息快速入库，保证 JWT 即时可用
-            initial_nickname = client.name or phone
-            user = get_or_create_user(db, uid, initial_nickname)
-            user.username = phone
-            db.commit()
+            existing = db.query(User).filter(User.supernova_account == uid).first()
 
-            save_user_session(db, user.id, client)
+            if existing:
+                # 老用户：直接用已有数据，后台静默更新
+                user = existing
+                user.username = phone
+                db.commit()
+                save_user_session(db, user.id, client)
+                _bg_enrich_user(client, uid, phone)
+            else:
+                # 新用户首次入库：必须同步拉取昵称/学校，确保入库即正确
+                account_info = client.get_account_info()
+                nickname = account_info.name or client.name or phone
+                school = account_info.school or ""
+                avatar_url = account_info.avatar or ""
+                log.info("新用户注册: phone=%s uid=%s nickname=%s school=%s",
+                         _mask_phone(phone), uid, nickname, school)
+
+                user = get_or_create_user(db, uid, nickname)
+                user.username = phone
+                if school:
+                    user.school = school
+                db.commit()
+
+                save_user_session(db, user.id, client)
+
+                # 头像下载放后台，不阻塞登录响应
+                if avatar_url and (avatar_url.startswith("http") or avatar_url.startswith("//")):
+                    threading.Thread(
+                        target=lambda: _download_and_save_avatar(db_module.SessionLocal(), user.id, uid, avatar_url),
+                        daemon=True
+                    ).start()
 
             jwt_token = create_jwt(user.id)
             result["jwt"] = jwt_token
@@ -377,9 +421,6 @@ async def api_login(phone: str = Query(...), password: str = Query(...)):
                 "school": user.school or "",
             }
             db.close()
-
-            # 后台：拉取学校/头像等详情（不阻塞登录响应）
-            _bg_enrich_user(client, uid, phone)
 
         except Exception as e:
             log.error("自动注册用户失败: %s, uid=%s, name=%s", e, client.uid, client.name)
