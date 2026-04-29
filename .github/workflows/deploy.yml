@@ -37,12 +37,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Validate required secrets
+        run: |
+          if [ -z "${{ secrets.DEPLOY_SSH_KEY }}" ]; then
+            echo "::error::DEPLOY_SSH_KEY secret is not set. Add it at Settings → Secrets and variables → Actions"
+            exit 1
+          fi
+          if [ -z "${{ secrets.DEPLOY_HOST }}" ]; then
+            echo "::error::DEPLOY_HOST secret is not set. Add it at Settings → Secrets and variables → Actions"
+            exit 1
+          fi
+          echo "All required secrets are set"
+
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          # Accept new host key to avoid interactive prompt
           echo "StrictHostKeyChecking=accept-new" >> ~/.ssh/config
 
       - name: Rsync files to server
