@@ -97,7 +97,7 @@ const app = createApp({
         currentPage(val) {
             if (this.cameraActive) this.stopScanCamera();
             if (val !== 'scan' && this._scanMap) { this._scanMap.destroy(); this._scanMap = null; }
-            if (val === 'home') { var self = this; self.loadFriends(); self.loadActiveCourses(); }
+            if (val === 'home') { var self = this; self.loadFriends().then(function() { self.loadActiveCourses(); }); }
             if (val === 'courses') this.loadCourses();
             if (val === 'scan') { this.loadFriends(); if (this.signMode === 'gesture') { var s = this; nextTick(function() { s.gestureInitCanvas(); }); } }
             if (val === 'friends') this.loadFriends();
