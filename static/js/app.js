@@ -744,6 +744,11 @@ const app = createApp({
         },
 
         // 位置签到（内嵌地图）
+        // ============================================================
+        // 腾讯地图 JavaScript API GL 版 — 地图选点组件
+        // SDK: https://map.qq.com/api/gljs?v=1.exp&key=KEY&libraries=service
+        // ============================================================
+
         initScanMap: function() {
             var self = this;
             self.locationLng = localStorage.getItem('cx_loc_lng') || '116.404';
@@ -752,84 +757,93 @@ const app = createApp({
 
             var retryCount = 0;
             var MAX_RETRY = 20;
-            var loadMap = function() {
-                var tryInit = function() {
-                    retryCount++;
-                    if (retryCount > MAX_RETRY) {
-                        self.toast('地图加载失败，可手动输入经纬度签到');
-                        return;
-                    }
-                    setTimeout(function() {
-                        var el = document.getElementById('scan-location-map');
-                        if (!el || el.clientHeight === 0) { tryInit(); return; }
-                        if (typeof AMap === 'undefined' || !AMap.Map) { tryInit(); return; }
-                        if (self._scanMap) { self._scanMap.destroy(); }
-                        self._scanMap = new AMap.Map('scan-location-map', {
-                            center: [parseFloat(self.locationLng), parseFloat(self.locationLat)],
-                            zoom: 15,
-                            resizeEnable: true,
-                        });
-                        // 初始标记物
-                        self._locationMarker = new AMap.Marker({
-                            map: self._scanMap,
-                            position: [parseFloat(self.locationLng), parseFloat(self.locationLat)],
-                            title: self.locationName || '',
-                        });
-                        self._scanMap.on('click', function(e) {
-                            var lng = e.lnglat.getLng();
-                            var lat = e.lnglat.getLat();
-                            self.locationLng = String(lng);
-                            self.locationLat = String(lat);
-                            self._locationMarker.setPosition([lng, lat]);
-                            var geocoder = new AMap.Geocoder();
-                            geocoder.getAddress(e.lnglat, function(status, result) {
-                                if (status === 'complete' && result.regeocode) {
-                                    self.locationName = result.regeocode.formattedAddress || '';
-                                    self._locationMarker.setTitle(self.locationName);
-                                }
-                            });
-                        });
-                    }, 300);
-                };
-                tryInit();
+            var pos = new TMap.LatLng(parseFloat(self.locationLat), parseFloat(self.locationLng));
+
+            var init = function() {
+                retryCount++;
+                if (retryCount > MAX_RETRY) {
+                    self.toast('地图加载失败，可手动输入经纬度签到');
+                    return;
+                }
+                setTimeout(function() {
+                    var el = document.getElementById('scan-location-map');
+                    if (!el || el.clientHeight === 0) { init(); return; }
+                    if (typeof TMap === 'undefined' || !TMap.Map) { init(); return; }
+
+                    if (self._scanMap) { self._scanMap.destroy(); }
+
+                    self._scanMap = new TMap.Map('scan-location-map', {
+                        center: pos,
+                        zoom: 15,
+                    });
+
+                    // 标记物
+                    self._locationMarker = new TMap.MultiMarker({
+                        map: self._scanMap,
+                        geometries: [{
+                            id: 'pin',
+                            position: pos,
+                            properties: { title: self.locationName || '' },
+                        }],
+                    });
+
+                    // 点击地图 → 移动标记 + 反查地址
+                    self._scanMap.on('click', function(e) {
+                        var clicked = e.latLng;
+                        self.locationLng = String(clicked.getLng());
+                        self.locationLat = String(clicked.getLat());
+                        self._locationMarker.setGeometries([{
+                            id: 'pin',
+                            position: clicked,
+                        }]);
+                        var gc = new TMap.service.Geocoder();
+                        gc.getAddress({ location: clicked }).then(function(res) {
+                            if (res.status === 0 && res.result && res.result.address) {
+                                self.locationName = res.result.address || '';
+                            }
+                        }).catch(function() {});
+                    });
+                }, 300);
             };
 
-            if (window.AMap) { loadMap(); return; }
-            var key = localStorage.getItem('cx_amap_key') || '你的高德地图key';
+            if (typeof TMap !== 'undefined' && TMap.Map) { init(); return; }
+            var mapKey = localStorage.getItem('cx_tmap_key') || '';
+            if (!mapKey) { self.toast('未配置腾讯地图 Key'); return; }
             var s = document.createElement('script');
-            s.src = 'https://webapi.amap.com/maps?v=2.0&key=' + key + '&plugin=AMap.Geocoder,AMap.Geolocation,AMap.PlaceSearch';
-            s.onload = loadMap;
-            s.onerror = function() {
-                self.toast('地图服务不可用，请检查高德 Key 域名白名单');
-            };
+            s.src = 'https://map.qq.com/api/gljs?v=1.exp&key=' + mapKey + '&libraries=service';
+            s.onload = function() { init(); };
+            s.onerror = function() { self.toast('地图服务不可用，请检查腾讯地图 Key'); };
             document.head.appendChild(s);
         },
 
         doLocationSearch: function() {
             var self = this;
-            if (!self.locationSearch.trim() || !window.AMap) return;
-            var placeSearch = new AMap.PlaceSearch({
-                pageSize: 5,
-                pageIndex: 1,
-                citylimit: false,
-            });
-            placeSearch.search(self.locationSearch.trim(), function(status, result) {
-                if (status === 'complete' && result.poiList && result.poiList.count > 0) {
-                    var poi = result.poiList.pois[0];
-                    var lng = poi.location.getLng();
-                    var lat = poi.location.getLat();
+            if (!self.locationSearch.trim()) return;
+            if (typeof TMap === 'undefined' || !TMap.service || !TMap.service.Search) {
+                return self.toast('地图服务未就绪');
+            }
+            var search = new TMap.service.Search({ pageSize: 5 });
+            search.search({ keyword: self.locationSearch.trim() }).then(function(res) {
+                if (res.status === 0 && res.data && res.data.length > 0) {
+                    var poi = res.data[0];
+                    var lat = poi.location.lat;
+                    var lng = poi.location.lng;
                     self.locationLng = String(lng);
                     self.locationLat = String(lat);
-                    self.locationName = poi.name;
+                    self.locationName = poi.title || '';
+                    var pos = new TMap.LatLng(lat, lng);
                     if (self._scanMap) {
-                        self._scanMap.setCenter([lng, lat]);
+                        self._scanMap.setCenter(pos);
                         if (self._locationMarker) {
-                            self._locationMarker.setPosition([lng, lat]);
-                            self._locationMarker.setTitle(poi.name);
+                            self._locationMarker.setGeometries([{
+                                id: 'pin',
+                                position: pos,
+                                properties: { title: poi.title || '' },
+                            }]);
                         }
                     }
                 }
-            });
+            }).catch(function() { self.toast('搜索失败'); });
         },
 
         doLocationSign: async function() {
@@ -877,94 +891,78 @@ const app = createApp({
         // 位置签到（旧版弹窗，保留兼容）
         openLocationModal: function() {
             var self = this;
-            if (window.AMap) {
-                self.initAMap();
-                return;
-            }
-            var amapKey = localStorage.getItem('cx_amap_key') || '你的高德地图key';
-            var script = document.createElement('script');
-            script.src = 'https://webapi.amap.com/maps?v=2.0&key=' + amapKey + '&plugin=AMap.Geocoder,AMap.Geolocation';
-            script.onload = function() { self.initAMap(); };
-            document.head.appendChild(script);
-        },
+            var initModalMap = function() {
+                self.locationLng = localStorage.getItem('cx_loc_lng') || '116.404';
+                self.locationLat = localStorage.getItem('cx_loc_lat') || '39.915';
+                self.locationName = localStorage.getItem('cx_loc_name') || '北京市';
 
-        initAMap: function() {
-            var self = this;
-            self.locationLng = localStorage.getItem('cx_loc_lng') || '116.404';
-            self.locationLat = localStorage.getItem('cx_loc_lat') || '39.915';
-            self.locationName = localStorage.getItem('cx_loc_name') || '北京市';
+                var container = document.createElement('div');
+                container.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:1000;background:#fff';
+                container.innerHTML =
+                    '<div id="loc-map" style="width:100%;height:calc(100% - 140px)"></div>' +
+                    '<div style="padding:12px;position:fixed;bottom:50px;left:0;right:0;background:#fff;z-index:1001">' +
+                    '  <p id="loc-info" style="margin-bottom:8px;color:#666;font-size:13px">点击地图选择位置</p>' +
+                    '  <button id="loc-submit" class="btn btn-filled" style="width:100%">确认签到</button>' +
+                    '</div>' +
+                    '<span style="position:fixed;top:12px;right:16px;font-size:28px;z-index:1001;cursor:pointer" id="loc-close">×</span>';
+                document.body.appendChild(container);
 
-            var container = document.createElement('div');
-            container.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:1000;background:#fff';
-            container.innerHTML =
-                '<div id="loc-map" style="width:100%;height:calc(100% - 140px)"></div>' +
-                '<div style="padding:12px;position:fixed;bottom:50px;left:0;right:0;background:#fff;z-index:1001">' +
-                '  <p id="loc-info" style="margin-bottom:8px;color:#666">点击地图选择位置</p>' +
-                '  <button id="loc-submit" class="btn btn-primary" style="width:100%">确认签到</button>' +
-                '</div>' +
-                '<span style="position:fixed;top:12px;right:16px;font-size:28px;z-index:1001;cursor:pointer" id="loc-close">×</span>';
-            document.body.appendChild(container);
+                document.getElementById('loc-close').onclick = function() { document.body.removeChild(container); };
 
-            document.getElementById('loc-close').onclick = function() {
-                document.body.removeChild(container);
-            };
-
-            var map = new AMap.Map('loc-map', {
-                center: [parseFloat(self.locationLng), parseFloat(self.locationLat)],
-                zoom: 15,
-                resizeEnable: true,
-            });
-
-            map.on('click', function(e) {
-                self.locationLng = String(e.lnglat.getLng());
-                self.locationLat = String(e.lnglat.getLat());
-                var geocoder = new AMap.Geocoder();
-                geocoder.getAddress(e.lnglat, function(status, result) {
-                    if (status === 'complete' && result.regeocode) {
-                        self.locationName = result.regeocode.formattedAddress || '';
-                        document.getElementById('loc-info').textContent = self.locationName;
-                    }
+                var pos = new TMap.LatLng(parseFloat(self.locationLat), parseFloat(self.locationLng));
+                var map = new TMap.Map('loc-map', { center: pos, zoom: 15 });
+                var marker = new TMap.MultiMarker({
+                    map: map,
+                    geometries: [{ id: 'pin', position: pos }],
                 });
-            });
 
-            AMap.plugin('AMap.Geolocation', function() {
-                var geo = new AMap.Geolocation({ enableHighAccuracy: true, timeout: 5000 });
-                geo.getCurrentPosition(function(status, result) {
-                    if (status === 'complete' && result.position) {
-                        map.setCenter([result.position.lng, result.position.lat]);
-                        self.locationLng = String(result.position.lng);
-                        self.locationLat = String(result.position.lat);
-                        if (result.formattedAddress) {
-                            self.locationName = result.formattedAddress;
+                map.on('click', function(e) {
+                    var clicked = e.latLng;
+                    self.locationLng = String(clicked.getLng());
+                    self.locationLat = String(clicked.getLat());
+                    marker.setGeometries([{ id: 'pin', position: clicked }]);
+                    var gc = new TMap.service.Geocoder();
+                    gc.getAddress({ location: clicked }).then(function(res) {
+                        if (res.status === 0 && res.result && res.result.address) {
+                            self.locationName = res.result.address || '';
                             document.getElementById('loc-info').textContent = self.locationName;
                         }
-                    }
+                    }).catch(function() {});
                 });
-            });
 
-            document.getElementById('loc-submit').onclick = async function() {
-                document.body.removeChild(container);
-                localStorage.setItem('cx_loc_lng', self.locationLng);
-                localStorage.setItem('cx_loc_lat', self.locationLat);
-                localStorage.setItem('cx_loc_name', self.locationName);
-                try {
-                    var data = await self.api('POST', '/sign', {
-                        active_id: self.currentTask.active_id,
-                        course_id: self.currentCourseId,
-                        class_id: self.currentClassId,
-                        sign_type: 'location',
-                        longitude: self.locationLng,
-                        latitude: self.locationLat,
-                        location_name: self.locationName,
-                    });
-                    if (data.ok) {
-                        self.toast('签到成功');
-                        setTimeout(function() { self.loadTasks(); }, 1500);
-                    } else {
-                        self.toast(data.message || '签到失败');
-                    }
-                } catch (e) {}
+                document.getElementById('loc-submit').onclick = async function() {
+                    document.body.removeChild(container);
+                    localStorage.setItem('cx_loc_lng', self.locationLng);
+                    localStorage.setItem('cx_loc_lat', self.locationLat);
+                    localStorage.setItem('cx_loc_name', self.locationName);
+                    try {
+                        var data = await self.api('POST', '/sign', {
+                            active_id: self.currentTask.active_id,
+                            course_id: self.currentCourseId,
+                            class_id: self.currentClassId,
+                            sign_type: 'location',
+                            longitude: self.locationLng,
+                            latitude: self.locationLat,
+                            location_name: self.locationName,
+                        });
+                        if (data.ok) {
+                            self.toast('签到成功');
+                            setTimeout(function() { self.loadTasks(); }, 1500);
+                        } else {
+                            self.toast(data.message || '签到失败');
+                        }
+                    } catch (e) {}
+                };
             };
+
+            if (typeof TMap !== 'undefined' && TMap.Map) { initModalMap(); return; }
+            var mapKey = localStorage.getItem('cx_tmap_key') || '';
+            if (!mapKey) { self.toast('未配置腾讯地图 Key'); return; }
+            var script = document.createElement('script');
+            script.src = 'https://map.qq.com/api/gljs?v=1.exp&key=' + mapKey + '&libraries=service';
+            script.onload = function() { initModalMap(); };
+            script.onerror = function() { self.toast('地图加载失败'); };
+            document.head.appendChild(script);
         },
     },
 
@@ -977,6 +975,9 @@ const app = createApp({
             var configData = await configResp.json();
             if (configData.amap_key) {
                 localStorage.setItem('cx_amap_key', configData.amap_key);
+            }
+            if (configData.tmap_key) {
+                localStorage.setItem('cx_tmap_key', configData.tmap_key);
             }
         } catch (e) {}
 

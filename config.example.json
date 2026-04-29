@@ -15,5 +15,6 @@
     },
     "jwt_secret": "change-this-to-a-random-secret-string",
     "amap_key": "你的高德地图key",
-    "amap_version": "2.0"
+    "amap_version": "2.0",
+    "tmap_key": "你的腾讯地图key"
 }

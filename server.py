@@ -862,6 +862,7 @@ async def api_public_config():
     return {
         "amap_key": cfg.get("amap_key", ""),
         "amap_version": cfg.get("amap_version", "2.0"),
+        "tmap_key": cfg.get("tmap_key", ""),
     }
 
 
