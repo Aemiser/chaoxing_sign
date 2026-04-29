@@ -96,7 +96,7 @@ const app = createApp({
     watch: {
         currentPage(val) {
             if (this.cameraActive) this.stopScanCamera();
-            if (val !== 'scan' && this._scanMap) { this._scanMap.destroy(); this._scanMap = null; }
+            if (val !== 'scan' && this._scanMap) { this._scanMap.destroy(); this._scanMap = null; this._locationMarker = null; }
             if (val === 'home') { var self = this; self.loadFriends().then(function() { self.loadActiveCourses(); }); }
             if (val === 'courses') this.loadCourses();
             if (val === 'scan') { this.loadFriends(); if (this.signMode === 'gesture') { var s = this; nextTick(function() { s.gestureInitCanvas(); }); } }
@@ -769,13 +769,23 @@ const app = createApp({
                             zoom: 15,
                             resizeEnable: true,
                         });
+                        // 初始标记物
+                        self._locationMarker = new AMap.Marker({
+                            map: self._scanMap,
+                            position: [parseFloat(self.locationLng), parseFloat(self.locationLat)],
+                            title: self.locationName || '',
+                        });
                         self._scanMap.on('click', function(e) {
-                            self.locationLng = String(e.lnglat.getLng());
-                            self.locationLat = String(e.lnglat.getLat());
+                            var lng = e.lnglat.getLng();
+                            var lat = e.lnglat.getLat();
+                            self.locationLng = String(lng);
+                            self.locationLat = String(lat);
+                            self._locationMarker.setPosition([lng, lat]);
                             var geocoder = new AMap.Geocoder();
                             geocoder.getAddress(e.lnglat, function(status, result) {
                                 if (status === 'complete' && result.regeocode) {
                                     self.locationName = result.regeocode.formattedAddress || '';
+                                    self._locationMarker.setTitle(self.locationName);
                                 }
                             });
                         });
@@ -806,11 +816,17 @@ const app = createApp({
             placeSearch.search(self.locationSearch.trim(), function(status, result) {
                 if (status === 'complete' && result.poiList && result.poiList.count > 0) {
                     var poi = result.poiList.pois[0];
-                    self.locationLng = String(poi.location.getLng());
-                    self.locationLat = String(poi.location.getLat());
+                    var lng = poi.location.getLng();
+                    var lat = poi.location.getLat();
+                    self.locationLng = String(lng);
+                    self.locationLat = String(lat);
                     self.locationName = poi.name;
                     if (self._scanMap) {
-                        self._scanMap.setCenter([parseFloat(self.locationLng), parseFloat(self.locationLat)]);
+                        self._scanMap.setCenter([lng, lat]);
+                        if (self._locationMarker) {
+                            self._locationMarker.setPosition([lng, lat]);
+                            self._locationMarker.setTitle(poi.name);
+                        }
                     }
                 }
             });
