@@ -326,7 +326,7 @@
                     <span class="friend-name">{{ f.nickname }}</span>
                     <span class="friend-account">{{ f.supernova_account }}</span>
                 </div>
-                <button class="btn btn-outlined btn-sm" @click="deleteFriend(f)">删除</button>
+                <button class="btn-delete-friend" @click="deleteFriend(f)"><span class="material-symbols-outlined">person_remove</span></button>
             </div>
         </div>
     </section>

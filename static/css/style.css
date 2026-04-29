@@ -653,6 +653,23 @@ body {
 .friend-name { font-size: var(--m3-body-lg); display: block; }
 .friend-account { font-size: var(--m3-body-sm); color: var(--m3-on-surface-variant); margin-top: 1px; display: block; }
 
+.btn-delete-friend {
+    width: 36px;
+    height: 36px;
+    border-radius: var(--m3-shape-full);
+    border: none;
+    background: transparent;
+    color: var(--m3-on-surface-variant);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.15s;
+    font-size: 18px;
+}
+.btn-delete-friend:active { background: var(--m3-error-container); color: var(--m3-error); }
+
 /* ---------- Scan Page ---------- */
 .scan-page-content { padding-bottom: 120px; }
 
