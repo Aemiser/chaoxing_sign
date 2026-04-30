@@ -2,21 +2,11 @@
 """超星学习通签到 - 命令行工具"""
 import sys
 import os
-import json
-from pathlib import Path
+
 from chaoxing_sign import ChaoxingClient, SignType
+from config import config
 
-CONFIG_FILE = Path(__file__).parent / "config.json"
 
-
-def load_config() -> dict:
-    """加载配置文件"""
-    if CONFIG_FILE.exists():
-        try:
-            return json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
-        except Exception:
-            pass
-    return {}
 
 
 def clear_screen():
@@ -217,10 +207,8 @@ def do_sign(client: ChaoxingClient, task, location_config: dict):
 
     return success
 
-
 def main():
     """主流程"""
-    config = load_config()
     location_config = get_location_config(config)
 
     clear_screen()

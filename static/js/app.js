@@ -790,6 +790,9 @@ const app = createApp({
                         }
                     });
                 });
+
+                // 地图就绪后自动触发一次定位
+                self.doGeolocation();
             };
 
             if (window.AMap && window.AMap.Map) { _init(); return; }

@@ -10,9 +10,37 @@ import requests
 from bs4 import BeautifulSoup
 
 from .types import Course, SignTask, SignType, AccountInfo
-from .utils import safe_json_loads
+from .utils import safe_json_loads, reverse_geocode_amap
+from .trilateration import solve_gn
+
+import math
+EARTH_RADIUS = 6371000.0
 
 log = logging.getLogger(__name__)
+
+# ============================================================
+# 三角定位缓存 — 活动ID → 成功坐标
+# ============================================================
+_LOCATION_CACHE_PATH = Path(__file__).parent.parent / "location_cache.json"
+
+
+def _load_location_cache() -> dict[str, tuple[float, float]]:
+    try:
+        if _LOCATION_CACHE_PATH.exists():
+            raw = json.loads(_LOCATION_CACHE_PATH.read_text(encoding="utf-8"))
+            return {k: (float(v[0]), float(v[1])) for k, v in raw.items()}
+    except Exception:
+        pass
+    return {}
+
+
+def _save_location_cache(cache: dict[str, tuple[float, float]]):
+    try:
+        data = {k: [v[0], v[1]] for k, v in cache.items()}
+        _LOCATION_CACHE_PATH.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    except Exception as e:
+        log.warning("保存定位缓存失败: %s", e)
+
 
 # ============================================================
 # API 端点
@@ -61,6 +89,8 @@ class ChaoxingClient:
         self._uid = ""
         self._name = ""
         self._logged_in = False
+
+        self.session.verify = False
 
     # ================================================================
     # 登录
@@ -429,14 +459,216 @@ class ChaoxingClient:
         return self._do_sign_get(task, params)
 
     def _sign_location(self, task: SignTask, **kwargs) -> bool:
-        """位置签到 — 携带自定义经纬度（默认北京）"""
+        """位置签到 — 自动判断普通/指定地点类型并分支处理"""
+        # 先探测 preSign 页面判断签到类型
+        if self._check_location_type(task) == "named":
+            return self._sign_named_location(task, **kwargs)
+
+        # 普通位置签到：携带自定义经纬度（默认北京）
         lng = kwargs.get("longitude", task.location_longitude or "116.404")
         lat = kwargs.get("latitude", task.location_latitude or "39.915")
 
         params = self._base_params(task)
         params["latitude"] = lat
         params["longitude"] = lng
+        params["address"]=reverse_geocode_amap(float(lat),float(lng))["display_name"]
         return self._do_sign_get(task, params)
+
+    def _check_location_type(self, task: SignTask) -> str:
+        """检查位置签到类型：'normal' 普通位置签到, 'named' 指定地点位置签到"""
+        try:
+            resp = self.session.get(PRESIGN_URL, params={
+                "courseId": task.course_id,
+                "classId": task.class_id,
+                "activePrimaryId": task.active_id,
+                "general": "1",
+                "sys": "1",
+                "ls": "1",
+                "appType": "15",
+                "uid": self._uid,
+            }, timeout=10)
+            soup = BeautifulSoup(resp.text, "lxml")
+            el = soup.select_one("#ifopenAddress")
+            if el and el.get("value") == "1":
+                log.info("检测到指定地点位置签到")
+                return "named"
+        except Exception as e:
+            log.warning("检查位置签到类型失败: %s", e)
+        return "normal"
+
+    def _probe_location(self, task: SignTask, lat: float, lon: float) -> tuple[str, float | None]:
+        """发送签到请求并解析结果。
+
+        Returns ("success", None), ("distance", meters), or ("error", None)
+        """
+        params = self._base_params(task)
+        params["latitude"] = str(lat)
+        params["longitude"] = str(lon)
+        params["address"] = reverse_geocode_amap(float(params["latitude"]), float(params["longitude"]))["display_name"]
+        try:
+            resp = self.session.get(STUSIGN_URL, params=params, timeout=15)
+            text = resp.text.strip()
+        except Exception as e:
+            log.error("探测请求失败 (%.6f, %.6f): %s", lat, lon, e)
+            return ("error", None)
+
+        if text == "success" or "成功" in text or "重复" in text or "已签到" in text:
+            log.info("探测 (%.6f,%.6f) → 签到成功", lon,lat)
+            return ("success", None)
+
+        m = re.search(r"距教师指定签到地点([\d.]+)米", text)
+        if m:
+            d = float(m.group(1))
+            log.info("探测 (%.6f, %.6f) → %.0f 米", lat, lon, d)
+            return ("distance", d)
+
+        log.warning("探测返回未知内容: %s", text[:100])
+        return ("error", None)
+
+    def _sign_named_location(self, task: SignTask, **kwargs) -> bool:
+        """指定地点位置签到 — 五探测点 + Gauss-Newton 球面最小二乘求解 + 缓存"""
+        PROBE_POINTS = [
+            ("哈尔滨",  45.75, 126.63),   # 东北角
+            ("乌鲁木齐", 43.83, 87.62),    # 西北角
+            ("三亚",    18.25, 109.50),   # 南方
+            ("拉萨",    29.66, 91.12),    # 西南角
+            ("上海",    31.23, 121.47),   # 东部沿海
+        ]
+
+        # 1. 检查缓存
+        cache = _load_location_cache()
+        cached = cache.get(task.active_id)
+        if cached is not None:
+            lat, lon = cached
+            log.info("命中定位缓存: (%.6f, %.6f)", lat, lon)
+            params = self._base_params(task)
+            params["latitude"] = str(lat)
+            params["longitude"] = str(lon)
+            params["address"] = reverse_geocode_amap(float(lat), float(lon)).get("display_name", "")
+            if self._do_sign_get(task, params):
+                return True
+            log.info("缓存坐标签到失败，重新探测")
+            del cache[task.active_id]
+
+        # 2. 探测 5 个点获取距离
+        distances = []
+        for name, lat, lon in PROBE_POINTS:
+            params = self._base_params(task)
+            params["latitude"] = str(lat)
+            params["longitude"] = str(lon)
+
+            try:
+                resp = self.session.get(STUSIGN_URL, params=params, timeout=15)
+                text = resp.text.strip()
+            except Exception as e:
+                log.error("探测请求失败 (%s): %s", name, e)
+                continue
+
+            if text == "success":
+                log.info("探测点 %s 已在签到范围内，直接签到成功", name)
+                cache[task.active_id] = (lat, lon)
+                _save_location_cache(cache)
+                return True
+            if "成功" in text or "重复" in text or "已签到" in text:
+                log.info("探测点 %s 签到结果: %s", name, text[:80])
+                cache[task.active_id] = (lat, lon)
+                _save_location_cache(cache)
+                return True
+
+            m = re.search(r"距教师指定签到地点([\d.]+)米", text)
+            if m:
+                d = float(m.group(1))
+                distances.append((lat, lon, d))
+                log.info("探测点 %s: 距离目标 %.1f 米", name, d)
+            else:
+                log.warning("探测点 %s 未返回距离信息: %s", name, text[:100])
+
+        if len(distances) < 3:
+            log.error("有效探测点不足 3 个（共 %d 个），无法三角定位", len(distances))
+            return False
+
+        # 3. 初始猜测 = C(5,3) 组合平面定位均值（保证进正确收敛盆地）
+        from itertools import combinations
+        from .trilateration import solve_three
+
+        guesses = set()
+        for (la1, lo1, d1), (la2, lo2, d2), (la3, lo3, d3) in combinations(distances, 3):
+            r = solve_three(la1, lo1, d1, la2, lo2, d2, la3, lo3, d3)
+            if r is not None:
+                guesses.add(r)
+
+        if not guesses:
+            log.error("所有组合均无解")
+            return False
+
+        guess_lat = sum(g[0] for g in guesses) / len(guesses)
+        guess_lon = sum(g[1] for g in guesses) / len(guesses)
+        log.info("初始猜测 (%d 组平均): (%.6f, %.6f)", len(guesses), guess_lat, guess_lon)
+
+        # 4. Gauss-Newton 球面精修 → 初始估计
+        target_lat, target_lon = solve_gn(distances, guess_lat, guess_lon)
+        log.info("GN 初始解: (%.6f, %.6f)", target_lat, target_lon)
+
+        # 5. 有限差分梯度下降 — 每次试探 2 个方向，推算目标方位
+        MAX_ROUNDS = 10
+        for round_num in range(MAX_ROUNDS):
+            # 5a. 中心点签到
+            status, val = self._probe_location(task, target_lat, target_lon)
+            if status == "success":
+                cache[task.active_id] = (target_lat, target_lon)
+                _save_location_cache(cache)
+                return True
+            if status != "distance":
+                log.error("中心点探测失败")
+                return False
+            d_center = val
+
+            # 5b. 微步试探：东、北各偏移 δ 米
+            delta_m = max(50.0, min(200.0, d_center * 0.1))
+            delta_deg = delta_m / EARTH_RADIUS
+            cos_tlat = math.cos(math.radians(target_lat))
+
+            # 东
+            e_lat, e_lon = target_lat, target_lon + math.degrees(delta_deg / cos_tlat)
+            status, val = self._probe_location(task, e_lat, e_lon)
+            if status == "success":
+                cache[task.active_id] = (e_lat, e_lon)
+                _save_location_cache(cache)
+                return True
+            d_east = val if status == "distance" else d_center
+
+            # 北
+            n_lat, n_lon = target_lat + math.degrees(delta_deg), target_lon
+            status, val = self._probe_location(task, n_lat, n_lon)
+            if status == "success":
+                cache[task.active_id] = (n_lat, n_lon)
+                _save_location_cache(cache)
+                return True
+            d_north = val if status == "distance" else d_center
+
+            # 5c. 梯度：D - D_east > 0 表示目标在东
+            grad_e = (d_center - d_east) / delta_m  # 正 → 目标在东
+            grad_n = (d_center - d_north) / delta_m  # 正 → 目标在北
+
+            grad_mag2 = grad_e * grad_e + grad_n * grad_n
+            if grad_mag2 < 1e-15:
+                log.warning("梯度为零，无法继续")
+                return False
+
+            # 5d. 朝目标方向移动 d_center 米
+            scale = d_center / grad_mag2
+            move_e = scale * grad_e  # 米
+            move_n = scale * grad_n
+
+            orig_lat = target_lat
+            target_lat += math.degrees(move_n / EARTH_RADIUS)
+            target_lon += math.degrees(move_e / (EARTH_RADIUS * math.cos(math.radians(orig_lat))))
+
+            log.info("第 %d 轮: dist=%.0fm Δe=%.0fm Δn=%.0fm → (%.6f, %.6f)",
+                     round_num + 1, d_center, move_e, move_n, target_lat, target_lon)
+
+        log.error("超过最大轮次 %d，签到失败", MAX_ROUNDS)
+        return False
 
     def _sign_qrcode(self, task: SignTask, **kwargs) -> bool:
         """二维码签到 — 需 enc 参数，支持: ①直接扫码 ②文件 ③输入内容 ④enc"""
@@ -449,11 +681,9 @@ class ChaoxingClient:
         if not enc:
             log.error("二维码签到缺少 enc 参数")
             return False
-
         params = self._base_params(task)
         params["enc"] = enc
-        params["longitude"] = 113.566743
-        params["latitude"] = 23.305351
+
         return self._do_sign_get(task, params)
 
     def sign_with_uid(self, task: SignTask, target_uid: str, **kwargs) -> bool:

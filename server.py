@@ -72,16 +72,8 @@ SESSION_TTL_SECONDS = 24 * 3600  # 24 小时后自动清理
 # DB 是否可用
 db_available = False
 
-# 加载配置
-config_path = Path(__file__).parent / "config.json"
-default_location = {"longitude": "116.404", "latitude": "39.915", "name": "北京市"}
-cfg: dict = {}
-if config_path.exists():
-    try:
-        cfg = json.loads(config_path.read_text(encoding="utf-8"))
-        default_location.update(cfg.get("location", {}))
-    except Exception:
-        pass
+from config import config as cfg
+default_location = cfg["location"]
 
 
 # ================================================================
