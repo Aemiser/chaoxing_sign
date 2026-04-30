@@ -75,6 +75,7 @@ const app = createApp({
             locationSearch: '',
             _scanMap: null,
             _locationMarker: null,
+            locating: false,
         };
     },
 
@@ -837,11 +838,47 @@ const app = createApp({
 
         doGeolocation: function() {
             var self = this;
+            if (self.locating) return;
+            self.locating = true;
+
+            var onDone = function(msg) {
+                self.locating = false;
+                if (msg) self.toast(msg);
+            };
+
+            // 优先用 AMap.Geolocation 插件（比浏览器 API 更稳定）
+            var A = window.AMap;
+            if (A && A.Geolocation) {
+                var geo = new A.Geolocation({ enableHighAccuracy: true, timeout: 8000 });
+                geo.getCurrentPosition(function(status, result) {
+                    if (status === 'complete' && result.position) {
+                        var lng = result.position.lng;
+                        var lat = result.position.lat;
+                        self.locationLng = String(lng);
+                        self.locationLat = String(lat);
+                        self.locationName = result.formattedAddress || '我的位置';
+                        if (self._scanMap) {
+                            self._scanMap.setZoomAndCenter(17, [lng, lat]);
+                            if (self._locationMarker) self._locationMarker.setPosition([lng, lat]);
+                        }
+                        onDone('已定位到当前位置');
+                    } else {
+                        onDone('定位失败，请检查设备定位是否开启');
+                    }
+                });
+                return;
+            }
+
+            // 浏览器 API 兜底
             if (!navigator.geolocation) {
+                self.locating = false;
                 return self.toast('当前浏览器不支持定位功能');
             }
+            // 开始计时：3s 内无回调则提示正在定位
+            var t = setTimeout(function() { self.toast('正在获取位置...'); }, 3000);
             navigator.geolocation.getCurrentPosition(
                 function(pos) {
+                    clearTimeout(t);
                     var lng = String(pos.coords.longitude);
                     var lat = String(pos.coords.latitude);
                     self.locationLng = lng;
@@ -852,7 +889,6 @@ const app = createApp({
                         if (self._locationMarker) self._locationMarker.setPosition([parseFloat(lng), parseFloat(lat)]);
                     }
                     // 反查地址
-                    var A = window.AMap;
                     if (A && A.Geocoder) {
                         var gc = new A.Geocoder();
                         gc.getAddress([parseFloat(lng), parseFloat(lat)], function(status, result) {
@@ -861,16 +897,17 @@ const app = createApp({
                             }
                         });
                     }
-                    self.toast('已定位到当前位置');
+                    onDone('已定位到当前位置');
                 },
                 function(err) {
+                    clearTimeout(t);
                     var msg = '定位失败';
-                    if (err.code === 1) msg = '定位被拒绝，请在浏览器设置中开启定位权限';
-                    else if (err.code === 2) msg = '无法获取定位信息';
-                    else if (err.code === 3) msg = '定位超时，请重试';
-                    self.toast(msg);
+                    if (err.code === 1) msg = '定位被拒绝，请在系统设置中开启定位权限';
+                    else if (err.code === 2) msg = '无法获取定位，请检查设备';
+                    else if (err.code === 3) msg = '定位超时，请移至开阔处重试';
+                    onDone(msg);
                 },
-                { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
             );
         },
 

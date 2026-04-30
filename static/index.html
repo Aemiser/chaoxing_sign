@@ -229,15 +229,17 @@
                     <span class="material-symbols-outlined" style="font-size:16px;vertical-align:-3px;margin-right:4px;color:var(--m3-primary)">location_on</span>
                     <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ locationName }}</span>
                     <span style="color:var(--m3-on-surface-variant);font-size:11px;flex-shrink:0">{{ locationLng }}, {{ locationLat }}</span>
-                    <button class="btn-locate" @click="doGeolocation" title="定位当前位置">
-                        <span class="material-symbols-outlined" style="font-size:18px">my_location</span>
+                    <button class="btn-locate" @click="doGeolocation" :disabled="locating" title="定位当前位置">
+                        <span v-if="locating" class="locate-spinner"></span>
+                        <span v-else class="material-symbols-outlined" style="font-size:18px">my_location</span>
                     </button>
                 </div>
                 <div class="location-info-bar" v-else style="color:var(--m3-outline)">
                     点击地图选择位置
                     <span style="flex:1"></span>
-                    <button class="btn-locate" @click="doGeolocation" title="定位当前位置">
-                        <span class="material-symbols-outlined" style="font-size:18px">my_location</span>
+                    <button class="btn-locate" @click="doGeolocation" :disabled="locating" title="定位当前位置">
+                        <span v-if="locating" class="locate-spinner"></span>
+                        <span v-else class="material-symbols-outlined" style="font-size:18px">my_location</span>
                     </button>
                 </div>
                 <button class="btn btn-filled" @click="doLocationSign" :disabled="signing || !locationLng"
