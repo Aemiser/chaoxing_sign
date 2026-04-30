@@ -222,30 +222,24 @@
                 </div>
             </div>
 
-            <!-- 位置签到区：腾讯地图官方 iframe 选点组件 -->
+            <!-- 位置签到区：腾讯地图 GL API 直接调用 -->
             <div v-if="signMode === 'location'" class="location-area">
-                <!-- 选点栏：按钮 + 地址/经纬度 -->
-                <div class="loc-pick-bar">
-                    <button class="btn btn-filled" @click="openLocationPicker" style="flex-shrink:0;padding:0 20px">
-                        <span class="material-symbols-outlined" style="font-size:18px;vertical-align:-4px;margin-right:4px">add_location</span>选点
-                    </button>
-                    <div class="loc-pick-info" v-if="locationName">
-                        <span class="loc-pick-addr">{{ locationName }}</span>
-                        <span class="loc-pick-coord">{{ locationLng }}, {{ locationLat }}</span>
-                    </div>
-                    <div class="loc-pick-info loc-pick-placeholder" v-else>
-                        点击「选点」打开地图选择位置
-                    </div>
+                <div id="scan-location-map" class="scan-location-map"></div>
+                <div class="location-info-bar" v-if="locationName">
+                    <span class="material-symbols-outlined" style="font-size:16px;vertical-align:-3px;margin-right:4px;color:var(--m3-primary)">location_on</span>
+                    <span>{{ locationName }}</span>
+                    <span style="color:var(--m3-on-surface-variant);font-size:11px">{{ locationLng }}, {{ locationLat }}</span>
                 </div>
-
-                <!-- 地图 iframe（点击选点后显示） -->
-                <iframe v-if="showLocPicker" id="tmap-picker-iframe" class="tmap-picker-iframe"
-                    :src="tmapPickerSrc"
-                    frameborder="0" scrolling="no"
-                    allow="geolocation"></iframe>
-
+                <div class="location-info-bar" v-else style="color:var(--m3-outline)">
+                    点击地图选择位置或搜索地点
+                </div>
+                <div class="location-search-bar">
+                    <input type="text" v-model="locationSearch" class="input" placeholder="搜索地点"
+                           @keyup.enter="doLocationSearch" style="flex:1;height:40px">
+                    <button class="btn btn-filled" @click="doLocationSearch" style="flex-shrink:0;padding:0 20px">搜索</button>
+                </div>
                 <button class="btn btn-filled" @click="doLocationSign" :disabled="signing || !locationLng"
-                        style="margin:16px 16px 0;width:calc(100% - 32px)">
+                        style="margin:12px 16px;width:calc(100% - 32px)">
                     {{ signing ? '签到中...' : '确认签到' }}
                 </button>
             </div>
