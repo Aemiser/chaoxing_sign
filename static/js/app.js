@@ -745,7 +745,7 @@ const app = createApp({
 
         // 位置签到（内嵌地图）
         // ============================================================
-        // 腾讯地图 GL API — 地图选点
+        // 高德地图 AMap — 地图选点
         // ============================================================
 
         initScanMap: function() {
@@ -754,46 +754,50 @@ const app = createApp({
             self.locationLat = localStorage.getItem('cx_loc_lat') || '39.915';
             self.locationName = localStorage.getItem('cx_loc_name') || '北京市';
 
-            var mapKey = localStorage.getItem('cx_tmap_key') || '';
-            if (!mapKey) { self.toast('未配置腾讯地图 Key'); return; }
+            var _retry = 0;
+            var _maxRetry = 30;
 
-            var tryInit = function(retry) {
-                retry = retry || 0;
-                if (retry > 30) { self.toast('地图加载超时，可手动输入经纬度'); return; }
+            var _init = function() {
+                _retry++;
+                if (_retry > _maxRetry) { self.toast('地图加载超时'); return; }
                 var el = document.getElementById('scan-location-map');
-                if (!el || el.clientHeight === 0) { setTimeout(function() { tryInit(retry + 1); }, 300); return; }
-                if (typeof window.TMap === 'undefined') { setTimeout(function() { tryInit(retry + 1); }, 300); return; }
+                if (!el || el.clientHeight === 0) { setTimeout(_init, 300); return; }
+                var A = window.AMap;
+                if (!A || !A.Map) { setTimeout(_init, 300); return; }
 
-                var TMap = window.TMap;
                 if (self._scanMap) { self._scanMap.destroy(); }
 
-                var pos = new TMap.LatLng(parseFloat(self.locationLat), parseFloat(self.locationLng));
-                self._scanMap = new TMap.Map('scan-location-map', { center: pos, zoom: 15 });
+                var center = [parseFloat(self.locationLng), parseFloat(self.locationLat)];
+                self._scanMap = new A.Map('scan-location-map', { center: center, zoom: 15, resizeEnable: true });
 
-                self._locationMarker = new TMap.MultiMarker({
+                self._locationMarker = new A.Marker({
                     map: self._scanMap,
-                    geometries: [{ id: 'pin', position: pos }],
+                    position: center,
+                    title: self.locationName || '',
                 });
 
                 self._scanMap.on('click', function(e) {
-                    var clicked = e.latLng;
-                    self.locationLng = String(clicked.getLng());
-                    self.locationLat = String(clicked.getLat());
-                    self._locationMarker.setGeometries([{ id: 'pin', position: clicked }]);
-                    var gc = new TMap.service.Geocoder();
-                    gc.getAddress({ location: clicked }).then(function(res) {
-                        if (res.status === 0 && res.result && res.result.address) {
-                            self.locationName = res.result.address || '';
+                    var lng = e.lnglat.getLng();
+                    var lat = e.lnglat.getLat();
+                    self.locationLng = String(lng);
+                    self.locationLat = String(lat);
+                    self._locationMarker.setPosition([lng, lat]);
+                    var gc = new A.Geocoder();
+                    gc.getAddress([lng, lat], function(status, result) {
+                        if (status === 'complete' && result.regeocode) {
+                            self.locationName = result.regeocode.formattedAddress || '';
                         }
-                    }).catch(function() {});
+                    });
                 });
             };
 
-            if (typeof window.TMap !== 'undefined') { tryInit(); return; }
+            if (window.AMap && window.AMap.Map) { _init(); return; }
+            var key = localStorage.getItem('cx_amap_key') || '';
+            if (!key) { self.toast('未配置高德地图 Key'); return; }
             var s = document.createElement('script');
-            s.src = 'https://map.qq.com/api/gljs?v=1.exp&key=' + mapKey + '&libraries=service';
-            s.onload = function() { tryInit(); };
-            s.onerror = function() { self.toast('地图服务不可用，请检查腾讯地图 Key 是否已启用 JavaScript API GL'); };
+            s.src = 'https://webapi.amap.com/maps?v=2.0&key=' + key + '&plugin=AMap.Geocoder,AMap.Geolocation,AMap.PlaceSearch';
+            s.onload = function() { _init(); };
+            s.onerror = function() { self.toast('高德地图 JS 加载失败，请检查 Key 域名白名单'); };
             document.head.appendChild(s);
         },
 
@@ -801,23 +805,73 @@ const app = createApp({
             var self = this;
             var kw = (self.locationSearch || '').trim();
             if (!kw) return;
-            var TMap = window.TMap;
-            if (!TMap || !TMap.service) return;
-            var search = new TMap.service.Search({ pageSize: 5 });
-            search.search({ keyword: kw }).then(function(res) {
-                if (res.status === 0 && res.data && res.data.length > 0) {
-                    var poi = res.data[0];
-                    var lat = poi.location.lat, lng = poi.location.lng;
+            var A = window.AMap;
+            if (!A) { self.toast('地图服务未就绪，请稍后重试'); return; }
+
+            var ps = new A.PlaceSearch({ pageSize: 5, citylimit: false });
+            ps.search(kw, function(status, result) {
+                if (status === 'complete' && result.poiList && result.poiList.count > 0) {
+                    // 显示所有匹配的标记物
+                    var pois = result.poiList.pois;
+                    var firstPoi = pois[0];
+                    var lng = firstPoi.location.getLng();
+                    var lat = firstPoi.location.getLat();
                     self.locationLng = String(lng);
                     self.locationLat = String(lat);
-                    self.locationName = poi.title || '';
-                    var pos = new TMap.LatLng(lat, lng);
+                    self.locationName = firstPoi.name;
                     if (self._scanMap) {
-                        self._scanMap.setCenter(pos);
-                        if (self._locationMarker) self._locationMarker.setGeometries([{ id: 'pin', position: pos }]);
+                        self._scanMap.setZoomAndCenter(16, [lng, lat]);
+                        if (self._locationMarker) {
+                            self._locationMarker.setPosition([lng, lat]);
+                            self._locationMarker.setTitle(firstPoi.name);
+                        }
                     }
+                    if (pois.length > 1) {
+                        self.toast('已定位到「' + firstPoi.name + '」，共' + pois.length + '个结果');
+                    }
+                } else {
+                    self.toast('未搜索到匹配地点');
                 }
-            }).catch(function() {});
+            });
+        },
+
+        doGeolocation: function() {
+            var self = this;
+            if (!navigator.geolocation) {
+                return self.toast('当前浏览器不支持定位功能');
+            }
+            navigator.geolocation.getCurrentPosition(
+                function(pos) {
+                    var lng = String(pos.coords.longitude);
+                    var lat = String(pos.coords.latitude);
+                    self.locationLng = lng;
+                    self.locationLat = lat;
+                    self.locationName = '我的位置';
+                    if (self._scanMap) {
+                        self._scanMap.setZoomAndCenter(17, [parseFloat(lng), parseFloat(lat)]);
+                        if (self._locationMarker) self._locationMarker.setPosition([parseFloat(lng), parseFloat(lat)]);
+                    }
+                    // 反查地址
+                    var A = window.AMap;
+                    if (A && A.Geocoder) {
+                        var gc = new A.Geocoder();
+                        gc.getAddress([parseFloat(lng), parseFloat(lat)], function(status, result) {
+                            if (status === 'complete' && result.regeocode) {
+                                self.locationName = result.regeocode.formattedAddress || '我的位置';
+                            }
+                        });
+                    }
+                    self.toast('已定位到当前位置');
+                },
+                function(err) {
+                    var msg = '定位失败';
+                    if (err.code === 1) msg = '定位被拒绝，请在浏览器设置中开启定位权限';
+                    else if (err.code === 2) msg = '无法获取定位信息';
+                    else if (err.code === 3) msg = '定位超时，请重试';
+                    self.toast(msg);
+                },
+                { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+            );
         },
 
         doLocationSign: async function() {
@@ -864,22 +918,22 @@ const app = createApp({
 
         openLocationModal: function() {
             var self = this;
-            if (typeof window.TMap !== 'undefined' && window.TMap.Map) {
+            if (window.AMap && window.AMap.Map) {
                 self.initScanMap();
                 self.currentPage = 'scan';
                 self.signMode = 'location';
                 return;
             }
-            var mapKey = localStorage.getItem('cx_tmap_key') || '';
-            if (!mapKey) { self.toast('未配置腾讯地图 Key'); return; }
+            var key = localStorage.getItem('cx_amap_key') || '';
+            if (!key) { self.toast('未配置高德地图 Key'); return; }
             var s = document.createElement('script');
-            s.src = 'https://map.qq.com/api/gljs?v=1.exp&key=' + mapKey + '&libraries=service';
+            s.src = 'https://webapi.amap.com/maps?v=2.0&key=' + key + '&plugin=AMap.Geocoder,AMap.Geolocation,AMap.PlaceSearch';
             s.onload = function() {
                 self.initScanMap();
                 self.currentPage = 'scan';
                 self.signMode = 'location';
             };
-            s.onerror = function() { self.toast('地图加载失败'); };
+            s.onerror = function() { self.toast('高德地图 JS 加载失败'); };
             document.head.appendChild(s);
         },
     },
