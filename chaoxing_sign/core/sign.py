@@ -147,7 +147,7 @@ class SignExecutor:
         params = self._client._base_params(task)
         params["latitude"] = lat
         params["longitude"] = lng
-        params["address"] = reverse_geocode_amap(float(lat), float(lng))["display_name"]
+        params["address"] = reverse_geocode_amap(float(lat), float(lng)).get("display_name", "")
         return self._client._do_sign_get(task, params)
 
     def _check_location_type(self, task: SignTask) -> str:
@@ -184,7 +184,7 @@ class SignExecutor:
         params["longitude"] = str(lon)
         params["address"] = reverse_geocode_amap(
             float(params["latitude"]), float(params["longitude"])
-        )["display_name"]
+        ).get("display_name", "")
         try:
             resp = self._client.session.get(STUSIGN_URL, params=params, timeout=15)
             text = resp.text.strip()
