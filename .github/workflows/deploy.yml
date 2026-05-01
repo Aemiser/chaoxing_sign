@@ -81,6 +81,15 @@ jobs:
           ssh -i ~/.ssh/deploy_key root@${{ secrets.DEPLOY_HOST }} << 'REMOTE_EOF'
             set -e
             cd /opt/chaoxing-sign
+
+            # 确保 systemd 服务使用 main.py -server（兼容旧版 server.py 路径）
+            SERVICE_FILE=/etc/systemd/system/chaoxing-sign.service
+            if grep -q 'ExecStart=.*server\.py' "$SERVICE_FILE" 2>/dev/null; then
+              echo "Updating systemd service ExecStart to main.py -server..."
+              sed -i 's|ExecStart=.*|ExecStart=/opt/chaoxing-sign/venv/bin/python /opt/chaoxing-sign/main.py -server|' "$SERVICE_FILE"
+              systemctl daemon-reload
+            fi
+
             /opt/chaoxing-sign/venv/bin/pip install -r requirements.txt -q
             systemctl restart chaoxing-sign
             sleep 2
