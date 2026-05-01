@@ -28,15 +28,16 @@ def create_app() -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        # 启动
+        # 启动 — SessionManager 必须始终初始化，否则登录返回 503
+        deps.session_manager = session_manager
+        auth_init(session_manager)
+
         try:
             from ..config import config as cfg
             db_module.init_db(cfg)
             Base.metadata.create_all(bind=db_module.engine)
             test_db = db_module.SessionLocal()
             test_db.close()
-            deps.session_manager = session_manager
-            auth_init(session_manager)
             log.info("数据库连接成功，好友/代签功能已启用")
         except Exception as e:
             log.warning("数据库不可用，好友/代签功能已禁用: %s", e)
