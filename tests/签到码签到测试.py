@@ -16,6 +16,7 @@ def sign_in_with_code(client: ChaoxingClient, active_id: int, class_id: int,
         "courseId": course_id,
         "signCode": sign_code,
         "validate": validate or "",
+        "uid": client.uid,
     }, timeout=15)
 
     if not resp.ok:
@@ -31,12 +32,12 @@ def sign_in_with_code(client: ChaoxingClient, active_id: int, class_id: int,
     if data:
         return {"ok": True, "data": data}
 
-    return {"ok": False, "text": text[:500]}
+    return {"ok": False, "text": text}
 
 
 def main():
     client = ChaoxingClient()
-    if not client.login("13043459114", "hu431024.1"):
+    if not client.login("15728822356", "15728822356a"):
         print("登录失败")
         return
 
@@ -44,10 +45,11 @@ def main():
 
     result = sign_in_with_code(
         client,
-        active_id=3000158057313,
+        active_id=3000158419732,
         class_id=146256641,
         course_id=263432266,
         sign_code="1111",
+        validate="validate_Qt9FIw9o4pwRjOyqM6yizZBh682qN2TU_D684D9270B0833F41E163FB427F3CB57"
     )
 
     print(json.dumps(result, ensure_ascii=False, indent=2))

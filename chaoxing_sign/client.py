@@ -12,6 +12,7 @@ from bs4 import BeautifulSoup
 from .types import Course, SignTask, SignType, AccountInfo
 from .utils import safe_json_loads, reverse_geocode_amap
 from .trilateration import solve_gn
+from .captcha import CaptchaSolver
 
 import math
 EARTH_RADIUS = 6371000.0
@@ -566,13 +567,9 @@ class ChaoxingClient:
 
             if text == "success":
                 log.info("探测点 %s 已在签到范围内，直接签到成功", name)
-                cache[task.active_id] = (lat, lon)
-                _save_location_cache(cache)
                 return True
             if "成功" in text or "重复" in text or "已签到" in text:
                 log.info("探测点 %s 签到结果: %s", name, text[:80])
-                cache[task.active_id] = (lat, lon)
-                _save_location_cache(cache)
                 return True
 
             m = re.search(r"距教师指定签到地点([\d.]+)米", text)
@@ -632,8 +629,6 @@ class ChaoxingClient:
             e_lat, e_lon = target_lat, target_lon + math.degrees(delta_deg / cos_tlat)
             status, val = self._probe_location(task, e_lat, e_lon)
             if status == "success":
-                cache[task.active_id] = (e_lat, e_lon)
-                _save_location_cache(cache)
                 return True
             d_east = val if status == "distance" else d_center
 
@@ -641,8 +636,6 @@ class ChaoxingClient:
             n_lat, n_lon = target_lat + math.degrees(delta_deg), target_lon
             status, val = self._probe_location(task, n_lat, n_lon)
             if status == "success":
-                cache[task.active_id] = (n_lat, n_lon)
-                _save_location_cache(cache)
                 return True
             d_north = val if status == "distance" else d_center
 
@@ -698,7 +691,7 @@ class ChaoxingClient:
         return self._do_sign_get(task, params)
 
     def _do_sign_get(self, task: SignTask, params: dict) -> bool:
-        """GET 方式调用签到接口"""
+        """GET 方式调用签到接口，自动处理滑块验证码"""
         try:
             resp = self.session.get(STUSIGN_URL, params=params, timeout=15)
             text = resp.text.strip()
@@ -719,6 +712,15 @@ class ChaoxingClient:
             msg = str(result.get("msg", result.get("message", "")))
             if msg and ("成功" in msg or "重复" in msg):
                 return True
+
+        # 检测是否需要滑块验证码
+        need_captcha = (
+            "验证码" in text or "滑块" in text
+            or "captcha" in text.lower() or "滑动" in text
+            or "拼图" in text
+        )
+        if need_captcha :
+            log.warning("需要验证码")
 
         log.warning("签到失败, 响应: %s", text[:200])
         return False
