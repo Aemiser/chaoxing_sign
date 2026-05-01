@@ -51,14 +51,14 @@ def _query_course_active(cookies: dict, course) -> tuple:
             if m:
                 active_id = m.group(1)
 
-        if st_raw == "qrcode" and raw_url:
+        if st_raw in ("qrcode", "location") and raw_url:
             try:
                 resp2 = s.get(raw_url, timeout=10)
                 soup = BeautifulSoup(resp2.text, "lxml")
                 el = soup.select_one("#ifopenAddress")
                 if el and el.get("value") == "1":
-                    st_raw = "qrcode_location"
-                    logging.getLogger(__name__).info("检测到指定位置二维码签到: %s", active_id)
+                    st_raw = "qrcode_location" if st_raw == "qrcode" else "location_named"
+                    logging.getLogger(__name__).info("检测到指定地点签到: %s → %s", name, active_id)
             except Exception:
                 pass
 
@@ -99,13 +99,23 @@ async def api_tasks(course_id: str, class_id: str, token: str = Query(...)):
                 c.get_sign_detail(t)
             except Exception:
                 pass
+        if t.sign_type == SignType.LOCATION:
+            try:
+                c.get_sign_detail(t)
+            except Exception:
+                pass
+
+    def _display_type(t):
+        if t.sign_type == SignType.LOCATION and getattr(t, "location_name", ""):
+            return "location_named"
+        return t.sign_type.value
 
     return {
         "ok": True,
         "tasks": [
             {
                 "active_id": t.active_id, "name": t.name,
-                "sign_type": t.sign_type.value, "sign_type_label": t.sign_type.value,
+                "sign_type": _display_type(t), "sign_type_label": t.sign_type.value,
                 "status": t.status, "signed": getattr(t, "signed", False),
                 "start_time": t.start_time, "end_time": t.end_time,
                 "course_name": t.course_name,

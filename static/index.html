@@ -56,6 +56,16 @@
             </div>
         </div>
         <div class="page-content">
+            <!-- Banner -->
+            <div class="home-banner" @click="currentPage = 'docs'">
+                <div class="banner-icon">
+                    <span class="material-symbols-outlined">menu_book</span>
+                </div>
+                <div class="banner-text">
+                    <p class="banner-title">使用教程</p>
+                    <p class="banner-desc">快速上手，了解全部签到类型 &gt;</p>
+                </div>
+            </div>
             <div class="action-cards">
                 <div class="action-card" @click="currentPage = 'courses'">
                     <span class="material-symbols-outlined action-icon">menu_book</span>
@@ -228,6 +238,16 @@
                         <span v-else class="material-symbols-outlined" style="font-size:18px">my_location</span>
                     </button>
                 </div>
+                <div class="location-trilateration-toggle">
+                    <label class="toggle-switch">
+                        <input type="checkbox" v-model="useTrilateration">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span class="toggle-label">三角定位求解</span>
+                    <span class="toggle-help" @click="toast('开启后自动使用五探测点+Gauss-Newton算法推算出教师指定签到位置坐标进行签到。\n\n关闭则直接使用地图上选中的坐标提交，适用于普通位置签到或教师未设置指定地点的情况。')" title="点击查看说明">
+                        <span class="material-symbols-outlined" style="font-size:16px">help</span>
+                    </span>
+                </div>
                 <button class="btn btn-filled" @click="doQrcodeLocationSign" :disabled="signing || !scannedQrData || !locationLng"
                         style="margin:12px 16px;width:calc(100% - 32px)">
                     {{ signing ? '签到中...' : '确认签到' }}
@@ -276,6 +296,16 @@
                         <span v-if="locating" class="locate-spinner"></span>
                         <span v-else class="material-symbols-outlined" style="font-size:18px">my_location</span>
                     </button>
+                </div>
+                <div v-if="isNamedLocation" class="location-trilateration-toggle">
+                    <label class="toggle-switch">
+                        <input type="checkbox" v-model="useTrilateration">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span class="toggle-label">三角定位求解</span>
+                    <span class="toggle-help" @click="toast('开启后自动使用五探测点+Gauss-Newton算法推算出教师指定签到位置坐标进行签到。\n\n关闭则直接使用地图上选中的坐标提交，适用于普通位置签到或教师未设置指定地点的情况。')" title="点击查看说明">
+                        <span class="material-symbols-outlined" style="font-size:16px">help</span>
+                    </span>
                 </div>
                 <button class="btn btn-filled" @click="doLocationSign" :disabled="signing || !locationLng"
                         style="margin:12px 16px;width:calc(100% - 32px)">
@@ -399,6 +429,73 @@
             <button class="btn btn-outlined" @click="doLogout" style="margin: 24px 16px;width:calc(100% - 32px)">
                 <span class="material-symbols-outlined" style="font-size:18px;vertical-align:-4px;margin-right:6px">logout</span>退出登录
             </button>
+        </div>
+    </section>
+
+    <!-- ====== Docs Page ====== -->
+    <section v-if="currentPage === 'docs'" class="page active">
+        <nav class="navbar">
+            <span class="nav-btn" @click="currentPage = 'home'"><span class="material-symbols-outlined">chevron_left</span></span>
+            <span class="navbar-title">使用教程</span>
+            <span class="nav-btn invisible"><span class="material-symbols-outlined">more_horiz</span></span>
+        </nav>
+        <div class="page-content docs-content">
+            <div class="docs-section">
+                <h2 class="docs-h2">1. 登录</h2>
+                <p>使用超星学习通账号（手机号 + 密码）登录。登录后自动保存 Session，下次打开无需重复登录。</p>
+                <img class="docs-img" src="/static/img/login.png" alt="登录页" loading="lazy">
+            </div>
+            <div class="docs-section">
+                <h2 class="docs-h2">2. 首页</h2>
+                <p>登录后进入首页，可看到：</p>
+                <ul>
+                    <li><b>有签到活动的课程</b> — 显示当前有进行中签到的课程，点击进入任务列表</li>
+                    <li><b>我的课程</b> — 查看全部课程</li>
+                    <li><b>好友管理</b> — 管理代签好友</li>
+                </ul>
+            </div>
+            <div class="docs-section">
+                <h2 class="docs-h2">3. 课程与签到任务</h2>
+                <p>在课程列表中选择课程，进入签到任务页面：</p>
+                <ul>
+                    <li><b>进行中</b> — 当前可签到的活动，点击对应按钮进入签到流程</li>
+                    <li><b>已结束</b> — 已过期的签到任务</li>
+                    <li><b>已签</b> — 标记已完成的签到，可点击「代签」帮好友签到</li>
+                </ul>
+            </div>
+            <div class="docs-section">
+                <h2 class="docs-h2">4. 普通签到 / 拍照签到</h2>
+                <p>点击签到按钮即可直接完成，无需额外操作。拍照签到不上传照片（教师端显示无图）。</p>
+            </div>
+            <div class="docs-section">
+                <h2 class="docs-h2">5. 位置签到</h2>
+                <p>在地图上点击选择位置，或点击定位按钮使用当前 GPS 位置。支持两种模式：</p>
+                <ul>
+                    <li><b>三角定位求解</b>（默认开启）— 自动使用五探测点 + Gauss-Newton 算法推算出教师指定的签到位置坐标。适用于教师设置了"指定地点"的位置签到</li>
+                    <li><b>直接提交</b> — 使用地图上选中的坐标直接提交，适用于普通位置签到</li>
+                </ul>
+                <p>选择好友后可同时为自己和好友完成签到。</p>
+            </div>
+            <div class="docs-section">
+                <h2 class="docs-h2">6. 二维码签到</h2>
+                <p>点击「扫描二维码」打开摄像头，对准老师展示的二维码自动识别并签到。也可手动输入 enc 参数。</p>
+                <p>选择好友后，识别成功后自动为所有选中的好友完成签到。</p>
+            </div>
+            <div class="docs-section">
+                <h2 class="docs-h2">7. 手势签到</h2>
+                <p>在画布上重绘老师展示的手势图案（1-9 数字连线），自动生成手势码。点击「确认签到」提交。</p>
+            </div>
+            <div class="docs-section">
+                <h2 class="docs-h2">8. 签到码签到</h2>
+                <p>输入老师给出的签到码（数字或字母），点击「确认签到」提交。</p>
+            </div>
+            <div class="docs-section">
+                <h2 class="docs-h2">9. 好友代签</h2>
+                <p><b>添加好友：</b>在「我的」→「好友管理」→ 点击右上角「添加好友」，输入好友的超星账号 UID，点击「搜索并添加」。</p>
+                <img class="docs-img" src="/static/img/add-friend.png" alt="添加好友弹窗" loading="lazy">
+                <p style="margin-top:12px"><b>代签操作：</b>进入任意签到页面，在底部「选择代签好友」区域勾选需要代签的好友，然后正常完成签到流程，系统会自动为所有勾选的好友一并签到。</p>
+                <img class="docs-img" src="/static/img/friends-select.png" alt="勾选好友代签" loading="lazy">
+            </div>
         </div>
     </section>
 

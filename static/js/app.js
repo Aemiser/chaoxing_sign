@@ -40,7 +40,8 @@ const app = createApp({
             // 签到类型
             typeLabels: {
                 normal: '普通签到', photo: '拍照签到', gesture: '手势签到',
-                location: '位置签到', qrcode: '二维码签到', qrcode_location: '指定位置二维码签到',
+                location: '位置签到', location_named: '指定位置签到',
+                qrcode: '二维码签到', qrcode_location: '指定位置二维码签到',
                 code: '签到码签到',
             },
 
@@ -81,6 +82,8 @@ const app = createApp({
             _scanMap: null,
             _locationMarker: null,
             locating: false,
+            useTrilateration: true,  // 指定地点位置签到：是否启用三角定位求解
+            isNamedLocation: false,
         };
     },
 
@@ -261,12 +264,12 @@ const app = createApp({
 
         // 签到
         startSign: function(task) {
-            var interactive = ['qrcode', 'code', 'gesture', 'location', 'qrcode_location'];
+            var interactive = ['qrcode', 'code', 'gesture', 'location', 'location_named', 'qrcode_location'];
             if (interactive.indexOf(task.sign_type) !== -1) {
                 this.signMode = task.sign_type === 'qrcode_location' ? 'qrcode_location'
                     : task.sign_type === 'code' ? 'code'
                     : task.sign_type === 'gesture' ? 'gesture'
-                    : task.sign_type === 'location' ? 'location'
+                    : task.sign_type === 'location' || task.sign_type === 'location_named' ? 'location'
                     : 'qrcode';
                 this.selectedFriends = [];
                 this.scanLogs = [];
@@ -279,6 +282,8 @@ const app = createApp({
                 this.locationSearch = '';
                 this.scannedQrData = '';
                 this.scannedEnc = '';
+                this.useTrilateration = true;
+                this.isNamedLocation = task.sign_type === 'location_named' || task.sign_type === 'qrcode_location';
                 this.currentTask = task;
                 this.currentPage = 'scan';
                 var self = this;
@@ -301,10 +306,12 @@ const app = createApp({
             this.locationSearch = '';
             this.scannedQrData = '';
             this.scannedEnc = '';
+            this.useTrilateration = true;
+            this.isNamedLocation = task.sign_type === 'location_named' || task.sign_type === 'qrcode_location';
             this.currentTask = task;
             if (task.sign_type === 'code') this.signMode = 'code';
             else if (task.sign_type === 'gesture') this.signMode = 'gesture';
-            else if (task.sign_type === 'location') this.signMode = 'location';
+            else if (task.sign_type === 'location' || task.sign_type === 'location_named') this.signMode = 'location';
             else if (task.sign_type === 'qrcode_location') this.signMode = 'qrcode_location';
             else this.signMode = 'qrcode';
             this.currentPage = 'scan';
@@ -960,6 +967,7 @@ const app = createApp({
                 longitude: self.locationLng,
                 latitude: self.locationLat,
                 location_name: self.locationName,
+                use_trilateration: self.useTrilateration ? '1' : '0',
             };
 
             try {
@@ -1014,6 +1022,7 @@ const app = createApp({
                     longitude: self.locationLng,
                     latitude: self.locationLat,
                     location_name: self.locationName,
+                    use_trilateration: self.useTrilateration ? '1' : '0',
                     proxy_friend_ids: [],
                 });
                 var selfResult = (selfData.results && selfData.results.self) || 'failed';

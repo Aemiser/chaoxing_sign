@@ -17,3 +17,4 @@ class QrcodeSignRequest(BaseModel):
     longitude: str = ""
     latitude: str = ""
     location_name: str = ""
+    use_trilateration: str = "1"

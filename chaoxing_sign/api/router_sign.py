@@ -37,6 +37,7 @@ async def api_sign(
     longitude: str = Query(""),
     latitude: str = Query(""),
     location_name: str = Query(""),
+    use_trilateration: str = Query("1"),
 ):
     c = deps.get_client(token)
 
@@ -61,6 +62,7 @@ async def api_sign(
         kwargs["longitude"] = longitude or default_location["longitude"]
         kwargs["latitude"] = latitude or default_location["latitude"]
         kwargs["location_name"] = location_name or default_location["name"]
+        kwargs["use_trilateration"] = use_trilateration
     if task.sign_type == SignType.QRCODE_LOCATION:
         kwargs["enc"] = enc
         kwargs["longitude"] = longitude or default_location["longitude"]
@@ -114,6 +116,7 @@ async def api_checkin_qrcode(
         sign_kwargs["longitude"] = body.longitude or default_location["longitude"]
         sign_kwargs["latitude"] = body.latitude or default_location["latitude"]
         sign_kwargs["location_name"] = body.location_name or default_location["name"]
+        sign_kwargs["use_trilateration"] = body.use_trilateration
 
     self_ok = c.sign(task, **sign_kwargs)
     results["self"] = "success" if self_ok else "failed"

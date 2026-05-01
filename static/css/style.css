@@ -276,6 +276,7 @@ body {
 .chip-photo    { background: #8b5cf6; color: #fff; border-color: transparent; }
 .chip-gesture  { background: var(--m3-primary); color: var(--m3-on-primary); border-color: transparent; }
 .chip-location { background: #f59e0b; color: #fff; border-color: transparent; }
+.chip-location_named { background: #dc2626; color: #fff; border-color: transparent; }
 .chip-qrcode   { background: var(--m3-warning); color: #fff; border-color: transparent; }
 .chip-qrcode_location { background: #f97316; color: #fff; border-color: transparent; }
 .chip-code     { background: #ec4899; color: #fff; border-color: transparent; }
@@ -958,6 +959,62 @@ body {
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* ---------- Toggle Switch ---------- */
+.location-trilateration-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: var(--m3-surface-container-low, #f7f8f9);
+    border-radius: 12px;
+    margin: 8px 16px;
+}
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+    flex-shrink: 0;
+}
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: var(--m3-outline-variant, #c4c7c5);
+    border-radius: 24px;
+    transition: 0.25s;
+}
+.toggle-slider::before {
+    content: "";
+    position: absolute;
+    height: 18px; width: 18px;
+    left: 3px; bottom: 3px;
+    background: #fff;
+    border-radius: 50%;
+    transition: 0.25s;
+}
+.toggle-switch input:checked + .toggle-slider {
+    background: var(--m3-primary, #1677ff);
+}
+.toggle-switch input:checked + .toggle-slider::before {
+    transform: translateX(20px);
+}
+.toggle-label {
+    font-size: 13px;
+    color: var(--m3-on-surface, #1f1f1f);
+}
+.toggle-help {
+    cursor: pointer;
+    color: var(--m3-outline, #72777a);
+    display: flex;
+    align-items: center;
+    margin-left: auto;
+}
+.toggle-help:hover {
+    color: var(--m3-primary, #1677ff);
+}
+
 /* ---------- Responsive ---------- */
 @media (min-width: 501px) {
     .app { border-left: 1px solid var(--m3-outline-variant); border-right: 1px solid var(--m3-outline-variant); }
@@ -966,3 +1023,59 @@ body {
 /* ---------- Utility ---------- */
 .page-content { overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .w-full { width: 100%; }
+
+/* ---------- Home Banner ---------- */
+.home-banner {
+    margin: 0 16px 12px;
+    border-radius: var(--m3-shape-lg);
+    background: linear-gradient(135deg, #1677ff 0%, #4096ff 50%, #69b1ff 100%);
+    padding: 18px 20px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    cursor: pointer;
+    box-shadow: var(--m3-elevation-2);
+    transition: box-shadow 0.2s, transform 0.15s;
+}
+.home-banner:active { transform: scale(0.98); box-shadow: var(--m3-elevation-1); }
+.banner-icon {
+    width: 48px; height: 48px;
+    background: rgba(255,255,255,0.2);
+    border-radius: var(--m3-shape-full);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+}
+.banner-icon .material-symbols-outlined {
+    font-size: 28px; color: #fff;
+}
+.banner-text { flex: 1; min-width: 0; }
+.banner-title { font-size: 16px; font-weight: 600; color: #fff; margin: 0; }
+.banner-desc { font-size: 12px; color: rgba(255,255,255,0.8); margin: 2px 0 0; }
+
+/* ---------- Docs Page ---------- */
+.docs-content { padding: 12px 16px 24px; }
+.docs-section {
+    background: var(--m3-surface-container-low);
+    border-radius: var(--m3-shape-md);
+    padding: 16px;
+    margin-bottom: 16px;
+}
+.docs-h2 {
+    font-size: 17px; font-weight: 600;
+    color: var(--m3-on-surface);
+    margin: 0 0 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--m3-outline-variant);
+}
+.docs-section p { font-size: 14px; color: var(--m3-on-surface-variant); margin: 0 0 8px; line-height: 1.6; }
+.docs-section ul { margin: 4px 0 8px; padding-left: 20px; }
+.docs-section li { font-size: 14px; color: var(--m3-on-surface-variant); margin-bottom: 4px; line-height: 1.5; }
+.docs-section b { color: var(--m3-on-surface); }
+.docs-img {
+    margin-top: 12px;
+    width: 100%;
+    border-radius: var(--m3-shape-sm);
+    display: block;
+    border: 1px solid var(--m3-outline-variant);
+}
+

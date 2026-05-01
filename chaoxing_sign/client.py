@@ -332,16 +332,17 @@ class ChaoxingClient:
             if m:
                 task.active_id = m.group(1)
 
-        # 检测是否为指定位置二维码签到
-        if task.sign_type == SignType.QRCODE:
+        # 检测是否为指定地点签到（二维码 + 位置均检测 #ifopenAddress）
+        if task.sign_type in (SignType.QRCODE, SignType.LOCATION):
             soup = BeautifulSoup(html, "lxml")
             el = soup.select_one("#ifopenAddress")
             if el and el.get("value") == "1":
-                task.sign_type = SignType.QRCODE_LOCATION
+                if task.sign_type == SignType.QRCODE:
+                    task.sign_type = SignType.QRCODE_LOCATION
                 loc_el = soup.select_one("#locationText")
                 if loc_el and loc_el.get("value"):
                     task.location_name = loc_el.get("value")
-                log.info("检测到指定位置二维码签到: %s", task.location_name)
+                log.info("检测到指定地点签到: %s", task.location_name)
 
         # 二维码签到：从后续的 API 调用中提取 enc
         if task.sign_type == SignType.QRCODE:

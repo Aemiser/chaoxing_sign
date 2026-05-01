@@ -137,7 +137,9 @@ class SignExecutor:
     # ── 位置签到 ────────────────────────────────────────────
 
     def _sign_location(self, task: SignTask, **kwargs) -> bool:
-        if self._check_location_type(task) == "named":
+        # 前端可关闭三角定位：直接提交选中坐标，跳过指定地点求解
+        use_trilateration = kwargs.pop("use_trilateration", "1")
+        if use_trilateration != "0" and self._check_location_type(task) == "named":
             return self._solve_named_location(task, **kwargs)
 
         lng = kwargs.get("longitude", task.location_longitude or "116.404")
