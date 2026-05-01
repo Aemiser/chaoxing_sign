@@ -1,4 +1,5 @@
 """JWT 认证工具"""
+from __future__ import annotations
 import secrets
 from datetime import datetime, timedelta, timezone
 
