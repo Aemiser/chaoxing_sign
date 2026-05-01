@@ -7,7 +7,6 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <title>超星学习通签到</title>
     <link rel="stylesheet" href="/static/css/style.css">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block">
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/vue@3.4/dist/vue.global.prod.js"></script>
 </head>
@@ -56,8 +55,7 @@
             </div>
         </div>
         <div class="page-content">
-            <!-- Banner -->
-            <div class="home-banner" @click="currentPage = 'docs'">
+            <div class="home-banner" @click="openDocs">
                 <div class="banner-icon">
                     <span class="material-symbols-outlined">menu_book</span>
                 </div>
@@ -69,8 +67,8 @@
             <div class="action-cards">
                 <div class="action-card" @click="currentPage = 'courses'">
                     <span class="material-symbols-outlined action-icon">menu_book</span>
-                    <span class="action-label">我的课程</span>
-                    <span class="action-desc">查看签到任务</span>
+                    <span class="action-label">全部课程</span>
+                    <span class="action-desc">浏览课程与任务</span>
                 </div>
                 <div class="action-card" @click="currentPage = 'friends'">
                     <span class="material-symbols-outlined action-icon">group</span>
@@ -80,15 +78,15 @@
                 </div>
             </div>
 
-            <!-- 有签到活动的课程 -->
+            <!-- 有签到活动的课程 — 常驻 -->
             <div class="home-active-section">
-                <div class="loading" v-if="loadingActive"><span class="spinner"></span></div>
-                <div v-else-if="activeCourses.length > 0">
                 <div class="section-title">
                     <span class="material-symbols-outlined section-icon">notifications_active</span>
                     有签到活动的课程
                     <span class="scan-friend-refresh" @click="loadActiveCourses()"><span class="material-symbols-outlined" style="font-size:14px;vertical-align:-2px">refresh</span> 刷新</span>
                 </div>
+                <div class="loading" v-if="loadingActive"><span class="spinner"></span></div>
+                <div v-else-if="activeCourses.length > 0">
                 <div v-for="co in activeCourses" :key="co.course_id" class="course-item"
                      @click="openTasks(co)">
                     <span class="material-symbols-outlined course-icon">{{ courseIcons[co.course_id.charCodeAt(0) % 8] }}</span>
@@ -98,6 +96,12 @@
                     </div>
                     <span class="chip chip-primary">{{ co.active_count }} 个活动</span>
                     <span class="material-symbols-outlined item-arrow">chevron_right</span>
+                </div>
+            </div>
+                <div v-else class="home-active-empty" @click="currentPage = 'courses'; loadCourses()">
+                    <span class="material-symbols-outlined" style="font-size:36px;display:block;margin-bottom:8px;color:var(--m3-outline)">event_busy</span>
+                    <p>暂无可签到的课程活动</p>
+                    <p class="home-active-empty-hint">点击浏览全部课程 &gt;</p>
                 </div>
             </div>
         </div>
@@ -447,12 +451,12 @@
             </div>
             <div class="docs-section">
                 <h2 class="docs-h2">2. 首页</h2>
-                <p>登录后进入首页，可看到：</p>
+                <p>登录后进入首页，顶部显示用户信息，蓝色 Banner 可进入本文档。下方可看到：</p>
                 <ul>
                     <li><b>有签到活动的课程</b> — 显示当前有进行中签到的课程，点击进入任务列表</li>
-                    <li><b>我的课程</b> — 查看全部课程</li>
-                    <li><b>好友管理</b> — 管理代签好友</li>
+                    <li><b>我的课程</b> / <b>好友管理</b> — 快速入口</li>
                 </ul>
+
             </div>
             <div class="docs-section">
                 <h2 class="docs-h2">3. 课程与签到任务</h2>
@@ -462,6 +466,8 @@
                     <li><b>已结束</b> — 已过期的签到任务</li>
                     <li><b>已签</b> — 标记已完成的签到，可点击「代签」帮好友签到</li>
                 </ul>
+                <img class="docs-img" src="/static/img/courses.png" alt="课程列表" loading="lazy">
+                <img class="docs-img" src="/static/img/tasks.png" alt="签到任务列表" loading="lazy" style="margin-top:8px">
             </div>
             <div class="docs-section">
                 <h2 class="docs-h2">4. 普通签到 / 拍照签到</h2>
@@ -469,32 +475,40 @@
             </div>
             <div class="docs-section">
                 <h2 class="docs-h2">5. 位置签到</h2>
-                <p>在地图上点击选择位置，或点击定位按钮使用当前 GPS 位置。支持两种模式：</p>
+                <p>在<b>高德地图</b>上点击选择位置，或点击定位按钮使用当前 GPS 位置。支持两种模式：</p>
                 <ul>
-                    <li><b>三角定位求解</b>（默认开启）— 自动使用五探测点 + Gauss-Newton 算法推算出教师指定的签到位置坐标。适用于教师设置了"指定地点"的位置签到</li>
-                    <li><b>直接提交</b> — 使用地图上选中的坐标直接提交，适用于普通位置签到</li>
+                    <li><b>三角定位求解</b>（默认开启）— 五探测点 + Gauss-Newton 算法推算教师指定坐标。适用于教师设置了"指定地点"的位置签到</li>
+                    <li><b>直接提交</b> — 使用地图选点直接提交，适用于普通位置签到</li>
                 </ul>
-                <p>选择好友后可同时为自己和好友完成签到。</p>
+                <p>页面底部可勾选好友，系统会同时为好友完成位置签到。</p>
+                <img class="docs-img" src="/static/img/sign-location.png" alt="位置签到页面" loading="lazy">
             </div>
             <div class="docs-section">
                 <h2 class="docs-h2">6. 二维码签到</h2>
-                <p>点击「扫描二维码」打开摄像头，对准老师展示的二维码自动识别并签到。也可手动输入 enc 参数。</p>
-                <p>选择好友后，识别成功后自动为所有选中的好友完成签到。</p>
+                <p>点击「扫描二维码」打开摄像头，对准老师展示的二维码<b>自动识别</b>并签到。</p>
+                <p>支持勾选好友，识别成功后自动为所有好友完成签到。签到日志区实时显示结果。</p>
+                <img class="docs-img" src="/static/img/sign-qrcode.png" alt="二维码签到页面" loading="lazy">
             </div>
             <div class="docs-section">
                 <h2 class="docs-h2">7. 手势签到</h2>
-                <p>在画布上重绘老师展示的手势图案（1-9 数字连线），自动生成手势码。点击「确认签到」提交。</p>
+                <p>在<b>九宫格画布</b>上重绘老师展示的手势图案（1-9 数字连线），自动生成手势码。点击「确认签到」提交。</p>
+                <p>支持触屏和鼠标绘制，实时显示当前已绘制的手势码。</p>
+                <img class="docs-img" src="/static/img/sign-gesture.png" alt="手势签到页面" loading="lazy">
             </div>
             <div class="docs-section">
                 <h2 class="docs-h2">8. 签到码签到</h2>
-                <p>输入老师给出的签到码（数字或字母），点击「确认签到」提交。</p>
+                <p>输入老师给出的签到码（数字或字母），点击「确认签到」提交。同样支持勾选好友代签。</p>
+                <img class="docs-img" src="/static/img/sign-code.png" alt="签到码签到页面" loading="lazy">
             </div>
             <div class="docs-section">
                 <h2 class="docs-h2">9. 好友代签</h2>
-                <p><b>添加好友：</b>在「我的」→「好友管理」→ 点击右上角「添加好友」，输入好友的超星账号 UID，点击「搜索并添加」。</p>
-                <img class="docs-img" src="/static/img/add-friend.png" alt="添加好友弹窗" loading="lazy">
+                <p><b>我的页面：</b>点击底部「我的」进入个人中心，可看到「我的好友」入口。</p>
+                <img class="docs-img" src="/static/img/profile.png" alt="我的页面" loading="lazy">
+                <p style="margin-top:12px"><b>好友管理：</b>在好友列表页点击右上角「添加好友」，输入好友的超星账号 UID，点击「搜索并添加」。</p>
+                <img class="docs-img" src="/static/img/friends.png" alt="好友管理" loading="lazy">
+                <img class="docs-img" src="/static/img/add-friend.png" alt="添加好友弹窗" loading="lazy" style="margin-top:8px">
                 <p style="margin-top:12px"><b>代签操作：</b>进入任意签到页面，在底部「选择代签好友」区域勾选需要代签的好友，然后正常完成签到流程，系统会自动为所有勾选的好友一并签到。</p>
-                <img class="docs-img" src="/static/img/friends-select.png" alt="勾选好友代签" loading="lazy">
+                <img class="docs-img" src="/static/img/sign-location-named.png" alt="勾选好友代签" loading="lazy">
             </div>
         </div>
     </section>

@@ -81,11 +81,26 @@ body {
     -webkit-tap-highlight-color: transparent;
 }
 
-/* ---------- Material Symbols base ---------- */
+/* ---------- Material Symbols (本地托管 — 400-weight TTF) ---------- */
+@font-face {
+    font-family: 'Material Symbols Outlined';
+    font-style: normal;
+    font-weight: 400;
+    src: url('/static/fonts/material-symbols-400.ttf') format('truetype');
+}
 .material-symbols-outlined {
-    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-    vertical-align: middle;
+    font-family: 'Material Symbols Outlined';
+    font-weight: 400;
+    font-style: normal;
+    font-size: 24px;
+    display: inline-block;
     line-height: 1;
+    text-transform: none;
+    letter-spacing: normal;
+    word-wrap: normal;
+    white-space: nowrap;
+    direction: ltr;
+    vertical-align: middle;
 }
 .icon-64 { font-size: 64px !important; }
 
@@ -443,6 +458,19 @@ body {
 .action-desc  { font-size: var(--m3-label-sm); color: var(--m3-on-surface-variant); }
 
 .home-active-section { margin-top: 4px; }
+.home-active-empty {
+    padding: 32px 16px;
+    text-align: center;
+    color: var(--m3-on-surface-variant);
+    font-size: var(--m3-body-md);
+    cursor: pointer;
+    border-radius: var(--m3-shape-lg);
+    margin: 8px 16px;
+    background: var(--m3-surface-container-low);
+    transition: background 0.15s;
+}
+.home-active-empty:active { background: var(--m3-surface-container); }
+.home-active-empty-hint { font-size: var(--m3-label-md); color: var(--m3-primary); margin-top: 4px; }
 
 /* ---------- Section Title ---------- */
 .section-title {
@@ -1020,10 +1048,6 @@ body {
     .app { border-left: 1px solid var(--m3-outline-variant); border-right: 1px solid var(--m3-outline-variant); }
 }
 
-/* ---------- Utility ---------- */
-.page-content { overflow-y: auto; -webkit-overflow-scrolling: touch; }
-.w-full { width: 100%; }
-
 /* ---------- Home Banner ---------- */
 .home-banner {
     margin: 0 16px 12px;
@@ -1045,12 +1069,15 @@ body {
     display: flex; align-items: center; justify-content: center;
     flex-shrink: 0;
 }
-.banner-icon .material-symbols-outlined {
-    font-size: 28px; color: #fff;
-}
+.banner-icon .material-symbols-outlined { font-size: 28px; color: #fff; }
 .banner-text { flex: 1; min-width: 0; }
 .banner-title { font-size: 16px; font-weight: 600; color: #fff; margin: 0; }
 .banner-desc { font-size: 12px; color: rgba(255,255,255,0.8); margin: 2px 0 0; }
+
+/* ---------- Utility ---------- */
+.page-content { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.w-full { width: 100%; }
+
 
 /* ---------- Docs Page ---------- */
 .docs-content { padding: 12px 16px 24px; }

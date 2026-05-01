@@ -116,6 +116,11 @@ const app = createApp({
     },
 
     methods: {
+        // 页面跳转
+        openDocs: function() {
+            this.currentPage = 'docs';
+        },
+
         // Toast
         toast: function(msg, duration) {
             var self = this;
