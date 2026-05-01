@@ -5,17 +5,18 @@ import pytest
 import requests
 
 from chaoxing_sign import ChaoxingClient, Course, SignTask, SignType, AccountInfo
-from chaoxing_sign.client import (
-    STUSIGN_URL, PRESIGN_URL, ACTIVE_TASK_URL, COURSE_LIST_URL,
-    LOGIN_URL, USER_INFO_URL, PASSPORT_HOST, MOBILE_API,
-)
 from chaoxing_sign.utils import (
     parse_course_id_from_url,
     extract_enc_from_qr,
     safe_json_loads,
 )
 
-LOGIN_PAGE_URL = f"{PASSPORT_HOST}/login?newversion=true"
+from tests.conftest import (
+    FakeResponse,
+    mock_session_methods,
+    make_client,
+    LOGIN_PAGE_URL,
+)
 
 
 # ============================================================
@@ -70,97 +71,6 @@ class TestDataclasses:
 
     def test_account_info(self):
         assert AccountInfo().uid == ""
-
-
-# ============================================================
-# Mock 辅助
-# ============================================================
-
-class FakeResponse:
-    """模拟 requests.Response"""
-    def __init__(self, text="", status_code=200, json_data=None, cookies=None):
-        # json_data 优先级高于 text（自动序列化）
-        if json_data is not None and not text:
-            text = json.dumps(json_data, ensure_ascii=False)
-        self._text = text
-        self.status_code = status_code
-        self._json_data = json_data
-        self._cookies = cookies or {}
-
-    @property
-    def text(self):
-        return self._text
-
-    def json(self):
-        if self._json_data is not None:
-            return self._json_data
-        return json.loads(self._text)
-
-
-def mock_session_methods(mocker, client, get_pages=True, get_resp=None,
-                          post_logon=None, course_resp=None,
-                          task_resp=None, analysis_resp=None,
-                          checkin_resp=None):
-    """统一 mock Session 的 get/post 方法"""
-    # 保存原始 session
-    session = client.session
-
-    def _fake_get(url, **kwargs):
-        # 登录页
-        if get_pages and LOGIN_PAGE_URL in url:
-            return FakeResponse("", 200)
-        # 用户信息
-        if USER_INFO_URL in url:
-            return FakeResponse(json_data={"msg": {"uid": client._uid or "10001", "name": "测试"}})
-        # 课程列表
-        if COURSE_LIST_URL in url:
-            if course_resp:
-                return FakeResponse(json_data=course_resp)
-            return FakeResponse(json_data={"channelList": []})
-        # 活动列表
-        if ACTIVE_TASK_URL in url:
-            if task_resp:
-                return FakeResponse(json_data=task_resp)
-            return FakeResponse(json_data={"activeList": []})
-        # 签到分析 preSign
-        if PRESIGN_URL in url:
-            if analysis_resp:
-                return FakeResponse(json_data=analysis_resp)
-            return FakeResponse(json_data={})
-        # 签到 GET (stuSignajax)
-        if STUSIGN_URL in url and checkin_resp:
-            return FakeResponse(
-                text=checkin_resp.get("text", ""),
-                status_code=checkin_resp.get("code", 200),
-                json_data=checkin_resp.get("json"),
-            )
-        # 其他 GET
-        if get_resp:
-            return FakeResponse(text=get_resp.get("text", ""), status_code=get_resp.get("code", 200))
-        return FakeResponse("", 200)
-
-    def _fake_post(url, data=None, **kwargs):
-        if LOGIN_URL in url:
-            if post_logon:
-                for k, v in post_logon.get("cookies", {}).items():
-                    client.session.cookies.set(k, v)
-                return FakeResponse(
-                    text=post_logon.get("text", ""),
-                    status_code=post_logon.get("code", 200),
-                    json_data=post_logon.get("json"),
-                )
-            return FakeResponse("登录失败", 200)
-        return FakeResponse("", 200)
-
-    mocker.patch.object(session, "get", side_effect=_fake_get)
-    mocker.patch.object(session, "post", side_effect=_fake_post)
-
-
-def make_client(mocker, **kwargs):
-    """创建已 mock 的 client"""
-    client = ChaoxingClient()
-    mock_session_methods(mocker, client, **kwargs)
-    return client
 
 
 # ============================================================

@@ -24,7 +24,7 @@ class TestReverseGeocode:
         }
         mock_resp.raise_for_status.return_value = None
 
-        with patch("chaoxing_sign.utils.requests.get", return_value=mock_resp) as mock_get:
+        with patch("chaoxing_sign.utils.geo.requests.get", return_value=mock_resp) as mock_get:
             result = reverse_geocode(39.9042, 116.4074)
 
         assert result["display_name"] == "北京市海淀区中关村"
@@ -51,7 +51,7 @@ class TestReverseGeocode:
         }
         mock_resp.raise_for_status.return_value = None
 
-        with patch("chaoxing_sign.utils.requests.get", return_value=mock_resp) as mock_get:
+        with patch("chaoxing_sign.utils.geo.requests.get", return_value=mock_resp) as mock_get:
             reverse_geocode(39.9, 116.4)
 
         assert mock_get.call_args[1]["params"]["accept-language"] == "zh"
@@ -67,14 +67,14 @@ class TestReverseGeocode:
         }
         mock_resp.raise_for_status.return_value = None
 
-        with patch("chaoxing_sign.utils.requests.get", return_value=mock_resp):
+        with patch("chaoxing_sign.utils.geo.requests.get", return_value=mock_resp):
             result = reverse_geocode(39.9, 116.4, lang="en")
 
         assert "Haidian" in result["display_name"]
 
     def test_network_error(self):
         """网络错误时返回 error 字段"""
-        with patch("chaoxing_sign.utils.requests.get",
+        with patch("chaoxing_sign.utils.geo.requests.get",
                    side_effect=requests.ConnectionError("Connection refused")):
             result = reverse_geocode(39.9, 116.4)
 
@@ -89,7 +89,7 @@ class TestReverseGeocode:
         mock_resp.json.return_value = {"error": "Unable to geocode"}
         mock_resp.raise_for_status.return_value = None
 
-        with patch("chaoxing_sign.utils.requests.get", return_value=mock_resp):
+        with patch("chaoxing_sign.utils.geo.requests.get", return_value=mock_resp):
             result = reverse_geocode(0, 0)
 
         assert result["error"] == "Unable to geocode"
@@ -100,7 +100,7 @@ class TestReverseGeocode:
         mock_resp.json.return_value = {"display_name": "x", "address": {}, "lat": "0", "lon": "0"}
         mock_resp.raise_for_status.return_value = None
 
-        with patch("chaoxing_sign.utils.requests.get", return_value=mock_resp) as mock_get:
+        with patch("chaoxing_sign.utils.geo.requests.get", return_value=mock_resp) as mock_get:
             reverse_geocode(39.9, 116.4, timeout=5)
 
         assert mock_get.call_args[1]["timeout"] == 5
@@ -131,7 +131,7 @@ class TestReverseGeocodeAmap:
         }
         mock_resp.raise_for_status.return_value = None
 
-        with patch("chaoxing_sign.utils.requests.get", return_value=mock_resp) as mock_get:
+        with patch("chaoxing_sign.utils.geo.requests.get", return_value=mock_resp) as mock_get:
             result = reverse_geocode_amap(39.9042, 116.4074)
 
         assert result["display_name"] == "北京市海淀区中关村大街27号"
@@ -154,7 +154,7 @@ class TestReverseGeocodeAmap:
         }
         mock_resp.raise_for_status.return_value = None
 
-        with patch("chaoxing_sign.utils.requests.get", return_value=mock_resp) as mock_get:
+        with patch("chaoxing_sign.utils.geo.requests.get", return_value=mock_resp) as mock_get:
             reverse_geocode_amap(23.0, 113.0)
 
         assert mock_get.call_args[1]["params"]["location"] == "113.0,23.0"
@@ -168,7 +168,7 @@ class TestReverseGeocodeAmap:
         }
         mock_resp.raise_for_status.return_value = None
 
-        with patch("chaoxing_sign.utils.requests.get", return_value=mock_resp):
+        with patch("chaoxing_sign.utils.geo.requests.get", return_value=mock_resp):
             result = reverse_geocode_amap(39.9, 116.4)
 
         assert "error" in result
@@ -176,7 +176,7 @@ class TestReverseGeocodeAmap:
 
     def test_network_error(self):
         """网络错误时返回 error 字段"""
-        with patch("chaoxing_sign.utils.requests.get",
+        with patch("chaoxing_sign.utils.geo.requests.get",
                    side_effect=requests.ConnectionError("timeout")):
             result = reverse_geocode_amap(39.9, 116.4)
 

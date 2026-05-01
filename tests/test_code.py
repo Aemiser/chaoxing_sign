@@ -9,7 +9,7 @@ from chaoxing_sign import ChaoxingClient, Course, SignTask, SignType
 
 class TestCodeSign:
     def _make_client(self, mocker, **kwargs):
-        from tests.test_all import make_client
+        from tests.conftest import make_client
 
         c = make_client(mocker, **kwargs)
         c._logged_in = True
@@ -54,7 +54,7 @@ class TestCodeSign:
     def test_code_sign_network_error(self, mocker):
         """签到码签到网络异常"""
         c = ChaoxingClient()
-        from tests.test_all import FakeResponse
+        from tests.conftest import FakeResponse
 
         mocker.patch.object(c.session, "get", return_value=FakeResponse("{}"))
         mocker.patch.object(c.session, "post", side_effect=requests.exceptions.Timeout)
