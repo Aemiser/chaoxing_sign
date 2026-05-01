@@ -17,6 +17,7 @@ from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
+from bs4 import BeautifulSoup
 
 from chaoxing_sign import ChaoxingClient, SignType
 from chaoxing_sign.types import Course, SignTask
@@ -90,6 +91,10 @@ class QrcodeSignRequest(BaseModel):
     course_id: str = ""
     class_id: str = ""
     proxy_friend_ids: list[int] = []
+    sign_type: str = ""
+    longitude: str = ""
+    latitude: str = ""
+    location_name: str = ""
 
 
 # ================================================================
@@ -569,10 +574,19 @@ async def api_tasks(course_id: str, class_id: str, token: str = Query(...)):
     course = Course(course_id=course_id, class_id=class_id, name="")
     tasks = c.get_sign_tasks(course, check_signed=True)
 
+    # 对二维码签到检测是否为指定位置类型
+    for t in tasks:
+        if t.sign_type == SignType.QRCODE:
+            try:
+                c.get_sign_detail(t)
+            except Exception:
+                pass
+
     type_name = {
         SignType.NORMAL: "normal", SignType.PHOTO: "photo",
         SignType.GESTURE: "gesture", SignType.LOCATION: "location",
-        SignType.QRCODE: "qrcode", SignType.CODE: "code",
+        SignType.QRCODE: "qrcode", SignType.QRCODE_LOCATION: "qrcode_location",
+        SignType.CODE: "code",
     }
 
     return {
@@ -633,6 +647,21 @@ def _query_course_active(cookies: dict, course) -> tuple:
             m = re.search(r"activePrimaryId=(\d+)", raw_url)
             if m:
                 active_id = m.group(1)
+
+        # 检测指定位置二维码签到
+        if st_raw == "qrcode" and raw_url:
+            try:
+                resp2 = s.get(raw_url, timeout=10)
+                soup = BeautifulSoup(resp2.text, "lxml")
+                el = soup.select_one("#ifopenAddress")
+                if el and el.get("value") == "1":
+                    st_raw = "qrcode_location"
+                    logging.getLogger(__name__).info(
+                        "检测到指定位置二维码签到: %s", active_id
+                    )
+            except Exception:
+                pass
+
         active.append({
             "active_id": active_id,
             "name": name,
@@ -702,7 +731,8 @@ async def api_sign(
     type_map = {
         "normal": SignType.NORMAL, "photo": SignType.PHOTO,
         "gesture": SignType.GESTURE, "location": SignType.LOCATION,
-        "qrcode": SignType.QRCODE, "code": SignType.CODE,
+        "qrcode": SignType.QRCODE, "qrcode_location": SignType.QRCODE_LOCATION,
+        "code": SignType.CODE,
     }
     st = type_map.get(sign_type, SignType.NORMAL)
 
@@ -721,6 +751,11 @@ async def api_sign(
     if st == SignType.QRCODE and enc:
         kwargs["enc"] = enc
     if st == SignType.LOCATION:
+        kwargs["longitude"] = longitude or default_location["longitude"]
+        kwargs["latitude"] = latitude or default_location["latitude"]
+        kwargs["location_name"] = location_name or default_location["name"]
+    if task.sign_type == SignType.QRCODE_LOCATION:
+        kwargs["enc"] = enc
         kwargs["longitude"] = longitude or default_location["longitude"]
         kwargs["latitude"] = latitude or default_location["latitude"]
         kwargs["location_name"] = location_name or default_location["name"]
@@ -769,19 +804,34 @@ async def api_checkin_qrcode(
     if not enc:
         raise HTTPException(400, "无法解析二维码内容，缺少 enc 参数")
 
+    st = SignType.QRCODE_LOCATION if body.sign_type == "qrcode_location" else SignType.QRCODE
+
     task = SignTask(
         active_id=active_id,
         name="",
         course_name="",
         course_id=course_id,
         class_id=class_id,
-        sign_type=SignType.QRCODE,
+        sign_type=st,
     )
+
+    # 检测是否为指定位置二维码签到
+    if st == SignType.QRCODE and active_id and course_id and class_id:
+        try:
+            task = c.get_sign_detail(task)
+        except Exception:
+            pass
 
     results = {"self": "failed", "proxy": []}
 
+    sign_kwargs = {"enc": enc}
+    if task.sign_type == SignType.QRCODE_LOCATION:
+        sign_kwargs["longitude"] = body.longitude or default_location["longitude"]
+        sign_kwargs["latitude"] = body.latitude or default_location["latitude"]
+        sign_kwargs["location_name"] = body.location_name or default_location["name"]
+
     # 为自己签到
-    self_ok = c.sign(task, enc=enc)
+    self_ok = c.sign(task, **sign_kwargs)
     results["self"] = "success" if self_ok else "failed"
 
     # 为好友代签（使用好友自己的超星会话）
@@ -815,7 +865,7 @@ async def api_checkin_qrcode(
                     continue
 
                 # 用好友自己的会话签到
-                proxy_ok = friend_client.sign(task, enc=enc)
+                proxy_ok = friend_client.sign(task, **sign_kwargs)
                 proxy_result = "success" if proxy_ok else "failed"
 
                 db.add(ProxyRecord(

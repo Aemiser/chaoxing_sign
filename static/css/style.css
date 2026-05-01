@@ -277,6 +277,7 @@ body {
 .chip-gesture  { background: var(--m3-primary); color: var(--m3-on-primary); border-color: transparent; }
 .chip-location { background: #f59e0b; color: #fff; border-color: transparent; }
 .chip-qrcode   { background: var(--m3-warning); color: #fff; border-color: transparent; }
+.chip-qrcode_location { background: #f97316; color: #fff; border-color: transparent; }
 .chip-code     { background: #ec4899; color: #fff; border-color: transparent; }
 
 /* ---------- Form Inputs (M3 Text Fields) ---------- */
@@ -777,6 +778,23 @@ body {
     border-radius: 50%;
     animation: spin 0.7s linear infinite;
     display: inline-block;
+}
+
+/* QR Code Location */
+.qrcode-location-area { margin: 8px 16px; }
+.qr-scanned-status {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    border-radius: var(--m3-shape-sm);
+    background: var(--m3-primary-container);
+    color: var(--m3-on-primary-container);
+    font-size: var(--m3-body-sm);
+}
+.qr-scanned-wait {
+    background: var(--m3-surface-container-highest);
+    color: var(--m3-on-surface-variant);
 }
 
 /* Friend Select List */

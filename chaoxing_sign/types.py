@@ -11,8 +11,9 @@ class SignType(Enum):
     PHOTO = "photo"          # 拍照签到
     GESTURE = "gesture"      # 手势签到
     LOCATION = "location"    # 位置签到
-    QRCODE = "qrcode"        # 二维码签到
-    CODE = "code"            # 签到码签到
+    QRCODE = "qrcode"                  # 二维码签到
+    QRCODE_LOCATION = "qrcode_location"  # 指定位置二维码签到
+    CODE = "code"                      # 签到码签到
 
     @classmethod
     def from_chinese(cls, name: str) -> "SignType":

@@ -182,6 +182,29 @@ def do_sign(client: ChaoxingClient, task, location_config: dict):
             if qr_input:
                 extra_kwargs["qr_content"] = qr_input
 
+    # 指定位置二维码签到 — enc + 经纬度
+    if task.sign_type == SignType.QRCODE_LOCATION:
+        if task.enc:
+            extra_kwargs["enc"] = task.enc
+        else:
+            qr_input = input("  请输入二维码内容或 enc 参数: ").strip()
+            if qr_input:
+                extra_kwargs["qr_content"] = qr_input
+        lng = location_config["longitude"]
+        lat = location_config["latitude"]
+        name = location_config["name"]
+        loc = input(f"  经纬度 (格式: lng,lat，回车用默认 {name} {lng},{lat}): ").strip()
+        if loc:
+            parts = loc.split(",")
+            if len(parts) == 2:
+                extra_kwargs["longitude"] = parts[0].strip()
+                extra_kwargs["latitude"] = parts[1].strip()
+                extra_kwargs["location_name"] = name
+        else:
+            extra_kwargs["longitude"] = lng
+            extra_kwargs["latitude"] = lat
+            extra_kwargs["location_name"] = name
+
     # 位置签到 - 使用配置文件默认位置
     if task.sign_type == SignType.LOCATION:
         lng = location_config["longitude"]

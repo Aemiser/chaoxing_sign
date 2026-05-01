@@ -6,13 +6,15 @@ import time
 import logging
 from pathlib import Path
 from typing import Optional
+import urllib3
 import requests
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 from bs4 import BeautifulSoup
 
 from .types import Course, SignTask, SignType, AccountInfo
 from .utils import safe_json_loads, reverse_geocode_amap
 from .trilateration import solve_gn
-from .captcha import CaptchaSolver
 
 import math
 EARTH_RADIUS = 6371000.0
@@ -383,6 +385,17 @@ class ChaoxingClient:
             if m:
                 task.active_id = m.group(1)
 
+        # 检测是否为指定位置二维码签到
+        if task.sign_type == SignType.QRCODE:
+            soup = BeautifulSoup(html, "lxml")
+            el = soup.select_one("#ifopenAddress")
+            if el and el.get("value") == "1":
+                task.sign_type = SignType.QRCODE_LOCATION
+                loc_el = soup.select_one("#locationText")
+                if loc_el and loc_el.get("value"):
+                    task.location_name = loc_el.get("value")
+                log.info("检测到指定位置二维码签到: %s", task.location_name)
+
         # 二维码签到：从后续的 API 调用中提取 enc
         if task.sign_type == SignType.QRCODE:
             # 尝试构造详情 URL 获取 enc
@@ -409,6 +422,7 @@ class ChaoxingClient:
             SignType.GESTURE: self._sign_gesture,
             SignType.LOCATION: self._sign_location,
             SignType.QRCODE: self._sign_qrcode,
+            SignType.QRCODE_LOCATION: self._sign_qrcode_location,
             SignType.CODE: self._sign_code,
         }
         method = sign_methods.get(task.sign_type, self._sign_normal)
@@ -676,6 +690,48 @@ class ChaoxingClient:
             return False
         params = self._base_params(task)
         params["enc"] = enc
+
+        return self._do_sign_get(task, params)
+
+    def _sign_qrcode_location(self, task: SignTask, **kwargs) -> bool:
+        """指定位置二维码签到 — enc + location JSON
+
+        与普通位置签到不同：latitude/longitude 固定为 -1，
+        真实坐标打包在 location 参数（JSON 字符串，含 result/address/longitude/latitude）。
+        参考 qr_local.html navOpen() 第 418-420 行。
+        """
+        enc = kwargs.get("enc", task.enc or "")
+        if not enc:
+            qr_content = kwargs.get("qr_content", "")
+            if qr_content:
+                m = re.search(r"enc=([a-zA-Z0-9_\-]+)", qr_content)
+                enc = m.group(1) if m else qr_content.strip()
+        if not enc:
+            log.error("指定位置二维码签到缺少 enc 参数")
+            return False
+
+        lng = float(kwargs.get("longitude", task.location_longitude or "116.404"))
+        lat = float(kwargs.get("latitude", task.location_latitude or "39.915"))
+        location_name = kwargs.get("location_name", task.location_name or "")
+
+        # 逆地理编码获取地址描述
+        try:
+            geo = reverse_geocode_amap(lat, lng)
+            address = geo.get("display_name", location_name) if geo else location_name
+        except Exception:
+            address = location_name
+
+        # 构造 location JSON（qr_local.html 第 83-94 行：仅保留 result/address/longitude/latitude）
+        location_json = json.dumps({
+            "result": 1,
+            "address": address or "",
+            "longitude": lng,
+            "latitude": lat,
+        }, ensure_ascii=False)
+
+        params = self._base_params(task)
+        params["enc"] = enc
+        params["location"] = location_json
 
         return self._do_sign_get(task, params)
 

@@ -40,7 +40,8 @@ const app = createApp({
             // 签到类型
             typeLabels: {
                 normal: '普通签到', photo: '拍照签到', gesture: '手势签到',
-                location: '位置签到', qrcode: '二维码签到', code: '签到码签到',
+                location: '位置签到', qrcode: '二维码签到', qrcode_location: '指定位置二维码签到',
+                code: '签到码签到',
             },
 
             // 扫码/签到码/手势
@@ -57,6 +58,10 @@ const app = createApp({
             selectedFriends: [],
             scanLogs: [],
             signing: false,
+
+            // 指定位置二维码签到
+            scannedQrData: '',
+            scannedEnc: '',
 
             // 好友
             friends: [],
@@ -256,11 +261,13 @@ const app = createApp({
 
         // 签到
         startSign: function(task) {
-            if (task.sign_type === 'qrcode' || task.sign_type === 'code' || task.sign_type === 'gesture' || task.sign_type === 'location') {
-                if (task.sign_type === 'code') this.signMode = 'code';
-                else if (task.sign_type === 'gesture') this.signMode = 'gesture';
-                else if (task.sign_type === 'location') this.signMode = 'location';
-                else this.signMode = 'qrcode';
+            var interactive = ['qrcode', 'code', 'gesture', 'location', 'qrcode_location'];
+            if (interactive.indexOf(task.sign_type) !== -1) {
+                this.signMode = task.sign_type === 'qrcode_location' ? 'qrcode_location'
+                    : task.sign_type === 'code' ? 'code'
+                    : task.sign_type === 'gesture' ? 'gesture'
+                    : task.sign_type === 'location' ? 'location'
+                    : 'qrcode';
                 this.selectedFriends = [];
                 this.scanLogs = [];
                 this.signCodeInput = '';
@@ -270,11 +277,14 @@ const app = createApp({
                 this.locationLat = '';
                 this.locationName = '';
                 this.locationSearch = '';
+                this.scannedQrData = '';
+                this.scannedEnc = '';
                 this.currentTask = task;
                 this.currentPage = 'scan';
                 var self = this;
                 if (this.signMode === 'gesture') { nextTick(function() { self.gestureInitCanvas(); }); }
                 if (this.signMode === 'location') { nextTick(function() { self.initScanMap(); }); }
+                if (this.signMode === 'qrcode_location') { nextTick(function() { self.initScanMap(); }); }
             }
         },
 
@@ -289,18 +299,24 @@ const app = createApp({
             this.locationLat = '';
             this.locationName = '';
             this.locationSearch = '';
+            this.scannedQrData = '';
+            this.scannedEnc = '';
             this.currentTask = task;
             if (task.sign_type === 'code') this.signMode = 'code';
             else if (task.sign_type === 'gesture') this.signMode = 'gesture';
             else if (task.sign_type === 'location') this.signMode = 'location';
+            else if (task.sign_type === 'qrcode_location') this.signMode = 'qrcode_location';
             else this.signMode = 'qrcode';
             this.currentPage = 'scan';
             var self = this;
             if (this.signMode === 'location') { nextTick(function() { self.initScanMap(); }); }
+            if (this.signMode === 'qrcode_location') { nextTick(function() { self.initScanMap(); }); }
         },
 
         doDirectSign: async function(task) {
             var self = this;
+            if (self.signing) return;
+            self.signing = true;
             try {
                 var data = await self.api('POST', '/sign', {
                     active_id: task.active_id,
@@ -314,7 +330,9 @@ const app = createApp({
                 } else {
                     self.toast(data.message || '签到失败');
                 }
-            } catch (e) {}
+            } catch (e) {} finally {
+                self.signing = false;
+            }
         },
 
         // ============================================================
@@ -325,6 +343,8 @@ const app = createApp({
             this.stopScanCamera();
             this.selectedFriends = [];
             this.scanLogs = [];
+            this.scannedQrData = '';
+            this.scannedEnc = '';
             this.currentPage = this.currentTask ? 'tasks' : 'home';
         },
 
@@ -416,8 +436,15 @@ const app = createApp({
                     var code = jsQR(imageData.data, imageData.width, imageData.height);
                     if (code && code.data) {
                         self.stopScanCamera();
-                        self.addLog('扫描', 'info', '识别成功，开始签到...');
-                        self.doScanSign(code.data);
+                        if (self.signMode === 'qrcode_location') {
+                            self.scannedQrData = code.data;
+                            var m = code.data.match(/enc=([a-zA-Z0-9_\-]+)/);
+                            self.scannedEnc = m ? m[1] : code.data;
+                            self.addLog('扫描', 'info', '二维码已识别，请选择位置');
+                        } else {
+                            self.addLog('扫描', 'info', '识别成功，开始签到...');
+                            self.doScanSign(code.data);
+                        }
                         return;
                     }
                 } catch (e) {}
@@ -435,6 +462,7 @@ const app = createApp({
             var m = qrData.match(/enc=([a-zA-Z0-9_\-]+)/);
             var enc = m ? m[1] : qrData;
 
+            if (self.signing) return;
             self.signing = true;
 
             // 为自己签到
@@ -598,6 +626,7 @@ const app = createApp({
 
         doGestureSign: async function() {
             var self = this;
+            if (self.signing) return;
             if (!self.gestureCode) return self.toast('请绘制手势图案');
             self.scanLogs = [];
             self.signing = true;
@@ -643,6 +672,7 @@ const app = createApp({
         doCodeSign: async function() {
             var self = this;
             var code = self.signCodeInput.trim();
+            if (self.signing) return;
             if (!code) return self.toast('请输入签到码');
             self.scanLogs = [];
             self.signing = true;
@@ -916,6 +946,7 @@ const app = createApp({
 
         doLocationSign: async function() {
             var self = this;
+            if (self.signing) return;
             if (!self.locationLng) return self.toast('请选择位置');
             self.scanLogs = [];
             self.signing = true;
@@ -945,6 +976,72 @@ const app = createApp({
                         var data = await self.api('POST', '/sign', signParams);
                         self.addLog(name, data.ok ? 'success' : 'fail');
                     } catch (e) { self.addLog(name, 'fail'); }
+                }
+            }
+
+            self.signing = false;
+            self.addLog('系统', 'info', '签到完成');
+            localStorage.setItem('cx_loc_lng', self.locationLng);
+            localStorage.setItem('cx_loc_lat', self.locationLat);
+            localStorage.setItem('cx_loc_name', self.locationName);
+            if (self.currentTask) setTimeout(function() { self.loadTasks(); }, 1500);
+        },
+
+        // 指定位置二维码签到
+        resetQrcodeLocationScan: function() {
+            this.scannedQrData = '';
+            this.scannedEnc = '';
+            this.stopScanCamera();
+        },
+
+        doQrcodeLocationSign: async function() {
+            var self = this;
+            if (self.signing) return;
+            if (!self.scannedQrData) return self.toast('请先扫描二维码');
+            if (!self.locationLng) return self.toast('请选择位置');
+            if (!self.jwt) return self.toast('请先登录');
+            self.scanLogs = [];
+            self.signing = true;
+            self.addLog('系统', 'info', '指定位置扫码签到 ' + self.locationName);
+
+            try {
+                var selfData = await self.apiAuth('POST', '/checkin/qrcode', {
+                    qr_data: self.scannedQrData,
+                    active_id: self.currentTask ? self.currentTask.active_id : '',
+                    course_id: self.currentTask ? self.currentCourseId : '',
+                    class_id: self.currentTask ? self.currentClassId : '',
+                    sign_type: 'qrcode_location',
+                    longitude: self.locationLng,
+                    latitude: self.locationLat,
+                    location_name: self.locationName,
+                    proxy_friend_ids: [],
+                });
+                var selfResult = (selfData.results && selfData.results.self) || 'failed';
+                self.addLog(self.user.nickname || '自己', selfResult);
+            } catch (e) {
+                self.addLog('自己', 'fail');
+            }
+
+            if (self.selectedFriends.length > 0) {
+                try {
+                    var data = await self.apiAuth('POST', '/checkin/qrcode', {
+                        qr_data: self.scannedQrData,
+                        active_id: self.currentTask ? self.currentTask.active_id : '',
+                        course_id: self.currentTask ? self.currentCourseId : '',
+                        class_id: self.currentTask ? self.currentClassId : '',
+                        sign_type: 'qrcode_location',
+                        longitude: self.locationLng,
+                        latitude: self.locationLat,
+                        location_name: self.locationName,
+                        proxy_friend_ids: self.selectedFriends,
+                    });
+                    var proxyResults = (data.results && data.results.proxy) || [];
+                    proxyResults.forEach(function(p) {
+                        var name = p.nickname || p.supernova_account || ('好友#' + p.friend_id);
+                        self.addLog(name, p.result === 'success' ? 'success' : 'fail');
+                    });
+                } catch (e) {
+                    self.addLog('代签', 'fail', '请求失败');
                 }
             }
 
