@@ -7,8 +7,9 @@ init_logging(config)
 
 from .client import ChaoxingClient
 from .types import Course, SignTask, SignType, AccountInfo
+from .utils.captcha import solve_captcha
 
 __all__ = [
     "ChaoxingClient", "Course", "SignTask", "SignType", "AccountInfo",
-    "get_logger",
+    "get_logger", "solve_captcha",
 ]

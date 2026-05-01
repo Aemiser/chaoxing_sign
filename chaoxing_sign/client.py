@@ -6,6 +6,8 @@ from pathlib import Path
 import urllib3
 import requests
 
+# solve_captcha 在 _do_sign_get 中延迟导入，避免循环依赖
+
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 from bs4 import BeautifulSoup
 
@@ -397,6 +399,11 @@ class ChaoxingClient:
 
         Returns (ok, message) —  message 包含成功或失败的具体原因。
         """
+        from .utils.captcha import solve_captcha
+        validate = solve_captcha(self.session, referer=STUSIGN_URL)
+        if validate:
+            params["validate"] = validate
+
         try:
             resp = self.session.get(STUSIGN_URL, params=params, timeout=15)
             text = resp.text.strip()
@@ -418,25 +425,15 @@ class ChaoxingClient:
             if msg and ("成功" in msg or "重复" in msg):
                 return (True, "签到成功")
 
-        # 检测是否需要滑块验证码
-        need_captcha = (
-            "验证码" in text or "滑块" in text
-            or "captcha" in text.lower() or "滑动" in text
-            or "拼图" in text
-        )
-        if need_captcha:
-            log.warning("需要验证码")
-            return (False, "需要验证码，请在手机端完成签到")
-
         # 尝试从 JSON 响应中提取具体错误消息
         if isinstance(result, dict):
             msg = str(result.get("msg", result.get("message", "")))
             if msg:
-                log.warning("签到失败: %s", msg)
+                log.warning(" %s", msg)
                 return (False, msg)
 
         log.warning("签到失败, 响应: %s", text[:200])
-        return (False, f"签到失败: {text[:200]}")
+        return (False, f" {text[:200]}")
 
     # ================================================================
     # 账户信息

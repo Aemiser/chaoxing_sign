@@ -179,12 +179,17 @@ class SignExecutor:
 
         Returns ("success", None), ("distance", meters), or ("error", None)
         """
+        from ..utils.captcha import solve_captcha
         params = self._client._base_params(task)
         params["latitude"] = str(lat)
         params["longitude"] = str(lon)
         params["address"] = reverse_geocode_amap(
             float(params["latitude"]), float(params["longitude"])
         ).get("display_name", "")
+
+        validate = solve_captcha(self._client.session, referer=STUSIGN_URL)
+        if validate:
+            params["validate"] = validate
         try:
             resp = self._client.session.get(STUSIGN_URL, params=params, timeout=15)
             text = resp.text.strip()
