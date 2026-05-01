@@ -1,5 +1,4 @@
 """JWT 认证工具"""
-import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 
@@ -7,8 +6,9 @@ import jwt
 from fastapi import Header, HTTPException
 
 from ..config import config as _cfg
+from ..logging_config import get_logger
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 DEFAULT_SECRET = "default-secret-change-in-production"
 ALGORITHM = "HS256"

@@ -250,47 +250,47 @@ class TestSignExecution:
     def test_normal(self, mocker):
         c = self._setup(mocker, {"text": "success"})
         t = SignTask("1", "普通签到", "课", "1", "2", sign_type=SignType.NORMAL)
-        assert c.sign(t) is True
+        assert c.sign(t)[0] is True
 
     def test_gesture(self, mocker):
         c = self._setup(mocker, {"text": "success"})
         t = SignTask("1", "手势签到", "课", "1", "2", sign_type=SignType.GESTURE)
-        assert c.sign(t) is True
+        assert c.sign(t)[0] is True
 
     def test_location(self, mocker):
         c = self._setup(mocker, {"text": "success"})
         t = SignTask("1", "位置签到", "课", "1", "2", sign_type=SignType.LOCATION)
-        assert c.sign(t, longitude="120.5", latitude="30.5") is True
+        assert c.sign(t, longitude="120.5", latitude="30.5")[0] is True
 
     def test_location_default(self, mocker):
         c = self._setup(mocker, {"text": "success"})
         t = SignTask("1", "位置签到", "课", "1", "2", sign_type=SignType.LOCATION)
-        assert c.sign(t) is True  # 默认北京坐标
+        assert c.sign(t)[0] is True  # 默认北京坐标
 
     def test_qrcode(self, mocker):
         c = self._setup(mocker, {"text": "success"})
         t = SignTask("1", "二维码签到", "课", "1", "2", sign_type=SignType.QRCODE)
-        assert c.sign(t, enc="myenc") is True
+        assert c.sign(t, enc="myenc")[0] is True
 
     def test_qrcode_from_content(self, mocker):
         c = self._setup(mocker, {"text": "success"})
         t = SignTask("1", "二维码签到", "课", "1", "2", sign_type=SignType.QRCODE)
-        assert c.sign(t, qr_content="https://x.com?enc=extracted") is True
+        assert c.sign(t, qr_content="https://x.com?enc=extracted")[0] is True
 
     def test_qrcode_no_enc(self, mocker):
         c = self._setup(mocker, {"text": "success"})
         t = SignTask("1", "二维码签到", "课", "1", "2", sign_type=SignType.QRCODE)
-        assert c.sign(t) is False
+        assert c.sign(t)[0] is False
 
     def test_code(self, mocker):
         c = self._setup(mocker, {"text": "success"})
         t = SignTask("1", "签到码签到", "课", "1", "2", sign_type=SignType.CODE)
-        assert c.sign(t) is True
+        assert c.sign(t)[0] is True
 
     def test_json_response(self, mocker):
         c = self._setup(mocker, {"json": {"status": True}})
         t = SignTask("1", "普通签到", "课", "1", "2", sign_type=SignType.NORMAL)
-        assert c.sign(t) is True
+        assert c.sign(t)[0] is True
 
     def test_network_error(self, mocker):
         c = ChaoxingClient()
@@ -299,13 +299,13 @@ class TestSignExecution:
                             side_effect=requests.exceptions.Timeout)
         c._logged_in = True
         t = SignTask("1", "普通签到", "课", "1", "2", sign_type=SignType.NORMAL)
-        assert c.sign(t) is False
+        assert c.sign(t)[0] is False
 
     def test_photo(self, mocker):
         """拍照签到 = 普通签到"""
         c = self._setup(mocker, {"text": "success"})
         t = SignTask("1", "拍照签到", "课", "1", "2", sign_type=SignType.PHOTO)
-        assert c.sign(t) is True
+        assert c.sign(t)[0] is True
 
 
 class TestSessionPersistence:

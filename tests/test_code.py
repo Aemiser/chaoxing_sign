@@ -23,7 +23,7 @@ class TestCodeSign:
         t = SignTask(
             "10086", "签到码签到", "测试课", "123", "456", sign_type=SignType.CODE
         )
-        assert c.sign(t) is True
+        assert c.sign(t)[0] is True
 
     def test_code_sign_json_success(self, mocker):
         """签到码签到成功 (JSON 响应)"""
@@ -31,7 +31,7 @@ class TestCodeSign:
         t = SignTask(
             "10086", "签到码签到", "测试课", "123", "456", sign_type=SignType.CODE
         )
-        assert c.sign(t) is True
+        assert c.sign(t)[0] is True
 
     def test_code_sign_already_signed(self, mocker):
         """签到码签到 - 已签到 (重复签到视为成功)"""
@@ -41,7 +41,7 @@ class TestCodeSign:
         t = SignTask(
             "10086", "签到码签到", "测试课", "123", "456", sign_type=SignType.CODE
         )
-        assert c.sign(t) is True
+        assert c.sign(t)[0] is True
 
     def test_code_sign_failure(self, mocker):
         """签到码签到失败"""
@@ -49,7 +49,7 @@ class TestCodeSign:
         t = SignTask(
             "10086", "签到码签到", "测试课", "123", "456", sign_type=SignType.CODE
         )
-        assert c.sign(t) is False
+        assert c.sign(t)[0] is False
 
     def test_code_sign_network_error(self, mocker):
         """签到码签到网络异常"""
@@ -62,7 +62,7 @@ class TestCodeSign:
         t = SignTask(
             "10086", "签到码签到", "测试课", "123", "456", sign_type=SignType.CODE
         )
-        assert c.sign(t) is False
+        assert c.sign(t)[0] is False
 
     def test_code_sign_extra_kwargs_ignored(self, mocker):
         """签到码签到忽略额外参数 (正常完成签到)"""
@@ -70,4 +70,4 @@ class TestCodeSign:
         t = SignTask(
             "10086", "签到码签到", "测试课", "123", "456", sign_type=SignType.CODE
         )
-        assert c.sign(t, sign_code="1234", foo="bar") is True
+        assert c.sign(t, sign_code="1234", foo="bar")[0] is True

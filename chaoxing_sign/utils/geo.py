@@ -5,6 +5,9 @@ from typing import Any
 import requests
 
 from ..config import config
+from ..logging_config import get_logger
+
+log = get_logger(__name__)
 
 
 def reverse_geocode(lat: float, lon: float, *,
@@ -51,6 +54,7 @@ def reverse_geocode(lat: float, lon: float, *,
             "lon": float(data.get("lon", lon)),
         }
     except requests.RequestException as e:
+        log.warning("OSM 逆地理编码失败 (%.6f, %.6f): %s", lat, lon, e)
         return {"error": str(e), "lat": lat, "lon": lon}
 
 
@@ -90,9 +94,11 @@ def reverse_geocode_amap(lat: float, lon: float, *,
         resp.raise_for_status()
         data = resp.json()
     except requests.RequestException as e:
+        log.warning("高德逆地理编码失败 (%.6f, %.6f): %s", lat, lon, e)
         return {"error": str(e), "lat": lat, "lon": lon}
 
     if data.get("status") != "1":
+        log.warning("高德逆地理编码返回错误: %s", data.get("info", "未知错误"))
         return {"error": data.get("info", "未知错误"), "lat": lat, "lon": lon}
 
     regeo = data.get("regeocode", {})

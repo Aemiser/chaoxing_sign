@@ -1,7 +1,6 @@
 """课程/任务路由 — /api/courses, /api/tasks, /api/active-courses"""
 from __future__ import annotations
 import re
-import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests as req
@@ -10,9 +9,10 @@ from fastapi import APIRouter, Query
 
 from .. import SignType
 from ..types import Course
+from ..logging_config import get_logger
 from . import deps
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 router = APIRouter(prefix="/api", tags=["courses"])
 
 
@@ -58,7 +58,7 @@ def _query_course_active(cookies: dict, course) -> tuple:
                 el = soup.select_one("#ifopenAddress")
                 if el and el.get("value") == "1":
                     st_raw = "qrcode_location" if st_raw == "qrcode" else "location_named"
-                    logging.getLogger(__name__).info("检测到指定地点签到: %s → %s", name, active_id)
+                    log.info("检测到指定地点签到: %s → %s", name, active_id)
             except Exception:
                 pass
 

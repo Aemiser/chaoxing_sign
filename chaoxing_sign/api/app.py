@@ -1,6 +1,5 @@
 """FastAPI 应用工厂"""
 from __future__ import annotations
-import logging
 from pathlib import Path
 from contextlib import asynccontextmanager
 
@@ -11,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .. import database as db_module
 from ..models import Base
 from ..auth.session import SessionManager
+from ..logging_config import get_logger
 
 from . import deps
 from .router_auth import router as auth_router, init as auth_init
@@ -19,7 +19,7 @@ from .router_sign import router as sign_router
 from .router_friends import router as friends_router
 from .router_config import router as config_router
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 def create_app() -> FastAPI:

@@ -24,12 +24,12 @@ class TestSignWithUid:
 
         def capture_params(t, params):
             called_params.update(params)
-            return True
+            return (True, "success")
 
         client._do_sign_get = capture_params
 
         result = client.sign_with_uid(task, "target_uid_999", enc="enc_abc")
-        assert result is True
+        assert result[0] is True
         assert called_params["uid"] == "target_uid_999"
         assert called_params["enc"] == "enc_abc"
         assert called_params["activeId"] == "111"
@@ -51,11 +51,11 @@ class TestSignWithUid:
 
         def capture_params(t, params):
             called_params.update(params)
-            return False
+            return (False, "fail")
 
         client._do_sign_get = capture_params
         result = client.sign_with_uid(task, "other_uid")
-        assert result is False
+        assert result[0] is False
         assert called_params["uid"] == "other_uid"
         assert "enc" not in called_params
 
@@ -75,14 +75,14 @@ class TestSignWithUid:
 
         def capture_params(t, params):
             called_params.update(params)
-            return True
+            return (True, "success")
 
         client._do_sign_get = capture_params
         result = client.sign_with_uid(
             task, "target_uid",
             longitude="120.123", latitude="30.456",
         )
-        assert result is True
+        assert result[0] is True
         assert called_params["uid"] == "target_uid"
         assert called_params["longitude"] == "120.123"
         assert called_params["latitude"] == "30.456"

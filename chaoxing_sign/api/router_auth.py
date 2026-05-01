@@ -4,7 +4,6 @@ import uuid
 import time
 import json
 import threading
-import logging
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, HTTPException, Query
@@ -15,10 +14,11 @@ from ..auth.jwt import create_jwt
 from ..auth.session import SessionManager
 from .. import database as db_module
 from ..models import User, UserSession
+from ..logging_config import get_logger
 
 from . import deps
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 router = APIRouter(prefix="/api", tags=["auth"])
 
 _session_manager: SessionManager | None = None

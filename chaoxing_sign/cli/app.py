@@ -3,8 +3,10 @@ from __future__ import annotations
 import sys
 import os
 
-from .. import ChaoxingClient, SignType
+from .. import ChaoxingClient, SignType, get_logger
 from ..config import config
+
+log = get_logger(__name__)
 
 
 def clear_screen():
@@ -196,14 +198,14 @@ def do_sign(client: ChaoxingClient, task, location_config: dict):
             extra_kwargs["latitude"] = lat
             extra_kwargs["location_name"] = name
 
-    success = client.sign(task, **extra_kwargs)
+    ok, msg = client.sign(task, **extra_kwargs)
 
-    if success:
+    if ok:
         print(f"  [OK] {task.name} 签到成功!")
     else:
-        print(f"  [FAIL] {task.name} 签到失败!")
+        print(f"  [FAIL] {task.name} 签到失败: {msg}")
 
-    return success
+    return ok
 
 
 def main():
@@ -216,21 +218,26 @@ def main():
     phone, password = get_credentials(config)
 
     if not phone or not password:
+        log.error("账号密码不能为空")
         print("账号密码不能为空")
         sys.exit(1)
 
     print("\n正在登录...")
+    log.info("开始登录: phone=%s", phone)
     client = ChaoxingClient()
 
     if not client.login(phone, password):
+        log.error("登录失败: phone=%s", phone)
         print("登录失败! 请检查账号密码是否正确。")
         sys.exit(1)
 
+    log.info("登录成功: uid=%s name=%s", client.uid, client.name)
     print(f"登录成功! 欢迎, {client.name or phone}")
 
     while True:
         course = select_course(client)
         if course is None:
+            log.info("用户退出 CLI")
             print("\n再见!")
             break
 
@@ -248,4 +255,5 @@ def main():
             else:
                 fail_count += 1
 
+        log.info("签到完成: 成功=%d 失败=%d", success_count, fail_count)
         print(f"\n签到完成: 成功 {success_count}, 失败 {fail_count}")

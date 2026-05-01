@@ -1,6 +1,5 @@
 """签道路由 — /api/sign, /api/checkin/qrcode"""
 from __future__ import annotations
-import logging
 
 from fastapi import APIRouter, HTTPException, Query, Depends
 from sqlalchemy.orm import Session
@@ -11,6 +10,7 @@ from ..models import Friendship, User, ProxyRecord
 from ..utils import extract_enc_from_qr
 from ..auth.jwt import get_current_user_id
 from .. import database as db_module
+from ..logging_config import get_logger
 
 from . import deps
 from .schemas import QrcodeSignRequest
@@ -18,7 +18,7 @@ from .router_auth import _get_proxy_client
 
 from ..config import config as cfg
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 router = APIRouter(prefix="/api", tags=["sign"])
 
 default_location = cfg["location"]
@@ -73,8 +73,13 @@ async def api_sign(
     if st == SignType.GESTURE and gesture_code:
         kwargs["gesture"] = gesture_code
 
-    ok = c.sign(task, **kwargs)
-    return {"ok": ok, "message": "签到成功" if ok else "签到失败"}
+    log.info("执行签到: uid=%s type=%s active_id=%s", c.uid, sign_type, active_id)
+    ok, msg = c.sign(task, **kwargs)
+    if ok:
+        log.info("签到成功: uid=%s type=%s active_id=%s", c.uid, sign_type, active_id)
+    else:
+        log.warning("签到失败: uid=%s type=%s active_id=%s msg=%s", c.uid, sign_type, active_id, msg)
+    return {"ok": ok, "message": msg}
 
 
 @router.post("/checkin/qrcode")
@@ -94,6 +99,7 @@ async def api_checkin_qrcode(
     class_id = body.class_id or ""
 
     if not enc:
+        log.error("无法解析二维码内容，缺少 enc 参数: qr_data=%s", qr_data[:100])
         raise HTTPException(400, "无法解析二维码内容，缺少 enc 参数")
 
     st = SignType.QRCODE_LOCATION if body.sign_type == "qrcode_location" else SignType.QRCODE
@@ -106,8 +112,8 @@ async def api_checkin_qrcode(
     if st == SignType.QRCODE and active_id and course_id and class_id:
         try:
             task = c.get_sign_detail(task)
-        except Exception:
-            pass
+        except Exception as e:
+            log.warning("获取签到详情失败: %s", e)
 
     results = {"self": "failed", "proxy": []}
 
@@ -118,12 +124,20 @@ async def api_checkin_qrcode(
         sign_kwargs["location_name"] = body.location_name or default_location["name"]
         sign_kwargs["use_trilateration"] = body.use_trilateration
 
-    self_ok = c.sign(task, **sign_kwargs)
+    log.info("扫码签到: user_id=%d uid=%s enc=%s sign_type=%s", user_id, c.uid, enc, task.sign_type.value)
+    self_ok, self_msg = c.sign(task, **sign_kwargs)
     results["self"] = "success" if self_ok else "failed"
+    results["self_msg"] = self_msg
+    log.info("本人签到结果: %s msg=%s", results["self"], self_msg)
 
     if body.proxy_friend_ids:
+        log.info("开始代签: user_id=%d friend_ids=%s", user_id, body.proxy_friend_ids)
         db: Session = db_module.get_db()
         try:
+            # 获取操作人账户信息
+            action_user = db.query(User).filter(User.id == user_id).first()
+            actionuser_name = action_user.supernova_account if action_user else str(user_id)
+
             for fid in body.proxy_friend_ids:
                 friendship = (
                     db.query(Friendship)
@@ -131,34 +145,43 @@ async def api_checkin_qrcode(
                     .first()
                 )
                 if not friendship:
-                    results["proxy"].append({"friend_id": fid, "result": "无权代签"})
+                    log.warning("无权代签: user_id=%d friend_id=%d", user_id, fid)
+                    results["proxy"].append({"friend_id": fid, "result": "无权代签", "message": "无权代签"})
                     continue
 
                 friend = db.query(User).filter(User.id == fid).first()
                 if not friend:
-                    results["proxy"].append({"friend_id": fid, "result": "好友不存在"})
+                    log.warning("好友不存在: friend_id=%d", fid)
+                    results["proxy"].append({"friend_id": fid, "result": "好友不存在", "message": "好友不存在"})
                     continue
 
                 friend_client = _get_proxy_client(db, fid)
                 if not friend_client:
+                    log.warning("好友无可用会话: friend_id=%d account=%s", fid, friend.supernova_account)
                     results["proxy"].append({
                         "friend_id": fid, "supernova_account": friend.supernova_account,
                         "nickname": friend.nickname, "result": "好友未登录过，无可用会话",
+                        "message": "好友未登录过，无可用会话",
                     })
                     continue
 
-                proxy_ok = friend_client.sign(task, **sign_kwargs)
+                proxy_ok, proxy_msg = friend_client.sign(task, **sign_kwargs)
                 proxy_result = "success" if proxy_ok else "failed"
+                log.info("代签结果: actionuser=%s friend_id=%d target=%s result=%s msg=%s",
+                         actionuser_name, fid, friend.supernova_account, proxy_result, proxy_msg)
 
                 db.add(ProxyRecord(
                     user_id=user_id, target_uid=friend.supernova_account,
                     active_id=task.active_id, enc=enc, result=proxy_result,
+                    actionuser=actionuser_name,
+                    friendids=",".join(str(x) for x in body.proxy_friend_ids),
                 ))
                 db.commit()
 
                 results["proxy"].append({
                     "friend_id": fid, "supernova_account": friend.supernova_account,
                     "nickname": friend.nickname, "result": proxy_result,
+                    "message": proxy_msg,
                 })
         finally:
             db.close()

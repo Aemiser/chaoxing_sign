@@ -49,6 +49,18 @@ class DatabaseSettings(BaseSettings):
         )
 
 
+class LogSettings(BaseSettings):
+    """日志配置"""
+    model_config = SettingsConfigDict(extra="ignore")
+
+    level: str = "INFO"
+    console: bool = True
+    file: bool = True
+    dir: str = "logs"
+    max_bytes: int = 10485760
+    backup_count: int = 5
+
+
 class AppSettings(BaseSettings):
     """超星签到应用配置"""
 
@@ -66,6 +78,7 @@ class AppSettings(BaseSettings):
     # --------- 子配置 ---------
     location: LocationSettings = Field(default_factory=LocationSettings)
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
+    log: LogSettings = Field(default_factory=LogSettings)
 
     # --------- JWT ---------
     jwt_secret: str = ""
@@ -108,6 +121,14 @@ class AppSettings(BaseSettings):
             "amap_key_info": self.amap_key_info,
             "amap_version": self.amap_version,
             "tmap_key": self.tmap_key,
+            "log": {
+                "level": self.log.level,
+                "console": self.log.console,
+                "file": self.log.file,
+                "dir": self.log.dir,
+                "max_bytes": self.log.max_bytes,
+                "backup_count": self.log.backup_count,
+            },
         }
 
 

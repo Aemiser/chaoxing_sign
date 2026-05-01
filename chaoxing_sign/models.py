@@ -42,6 +42,8 @@ class ProxyRecord(Base):
     active_id = Column(String(64), nullable=False)
     enc = Column(String(255), default="")
     result = Column(String(32), default="")
+    actionuser = Column(String(64), default="")
+    friendids = Column(String(512), default="")
     created_at = Column(DateTime, server_default=func.now())
 
 

@@ -487,7 +487,8 @@ const app = createApp({
                     proxy_friend_ids: [],
                 });
                 var selfResult = (selfData.results && selfData.results.self) || 'failed';
-                self.addLog(self.user.nickname || '自己', selfResult);
+                var selfErrMsg = selfResult === 'failed' ? (selfData.results && selfData.results.self_msg) || '' : '';
+                self.addLog(self.user.nickname || '自己', selfResult, selfErrMsg);
             } catch (e) {
                 self.addLog('自己', 'fail');
             }
@@ -506,7 +507,9 @@ const app = createApp({
                     var proxyResults = (data.results && data.results.proxy) || [];
                     proxyResults.forEach(function(p) {
                         var name = p.nickname || p.supernova_account || ('好友#' + p.friend_id);
-                        self.addLog(name, p.result === 'success' ? 'success' : 'fail');
+                        var pResult = p.result === 'success' ? 'success' : 'fail';
+                        var pMsg = pResult === 'fail' ? (p.message || '') : '';
+                        self.addLog(name, pResult, pMsg);
                     });
                 } catch (e) {
                     self.addLog('代签', 'fail', '请求失败');
@@ -653,7 +656,7 @@ const app = createApp({
                     gesture_code: self.gestureCode,
                 });
                 if (selfData.ok) self.addLog(self.user.nickname || '自己', 'success');
-                else self.addLog(self.user.nickname || '自己', 'fail');
+                else self.addLog(self.user.nickname || '自己', 'fail', selfData.message || '');
             } catch (e) { self.addLog('自己', 'fail'); }
 
             // 好友代签
@@ -671,7 +674,7 @@ const app = createApp({
                             gesture_code: self.gestureCode,
                         });
                         if (data.ok) self.addLog(name, 'success');
-                        else self.addLog(name, 'fail');
+                        else self.addLog(name, 'fail', data.message || '');
                     } catch (e) { self.addLog(name, 'fail'); }
                 }
             }
@@ -702,7 +705,7 @@ const app = createApp({
                 if (selfData.ok) {
                     self.addLog(self.user.nickname || '自己', 'success');
                 } else {
-                    self.addLog(self.user.nickname || '自己', 'fail');
+                    self.addLog(self.user.nickname || '自己', 'fail', selfData.message || '');
                 }
             } catch (e) {
                 self.addLog('自己', 'fail');
@@ -725,7 +728,7 @@ const app = createApp({
                         if (data.ok) {
                             self.addLog(name, 'success');
                         } else {
-                            self.addLog(name, 'fail');
+                            self.addLog(name, 'fail', data.message || '');
                         }
                     } catch (e) {
                         self.addLog(name, 'fail');
@@ -977,7 +980,9 @@ const app = createApp({
 
             try {
                 var selfData = await self.api('POST', '/sign', signParams);
-                self.addLog(self.user.nickname || '自己', selfData.ok ? 'success' : 'fail');
+                var selfOk = selfData.ok;
+                var selfErr = selfOk ? '' : (selfData.message || '');
+                self.addLog(self.user.nickname || '自己', selfOk ? 'success' : 'fail', selfErr);
             } catch (e) { self.addLog('自己', 'fail'); }
 
             if (self.selectedFriends.length > 0) {
@@ -987,7 +992,8 @@ const app = createApp({
                     var name = friend ? friend.nickname : ('好友#' + fid);
                     try {
                         var data = await self.api('POST', '/sign', signParams);
-                        self.addLog(name, data.ok ? 'success' : 'fail');
+                        var fOk = data.ok;
+                        self.addLog(name, fOk ? 'success' : 'fail', fOk ? '' : (data.message || ''));
                     } catch (e) { self.addLog(name, 'fail'); }
                 }
             }
@@ -1031,7 +1037,8 @@ const app = createApp({
                     proxy_friend_ids: [],
                 });
                 var selfResult = (selfData.results && selfData.results.self) || 'failed';
-                self.addLog(self.user.nickname || '自己', selfResult);
+                var selfErrMsg = selfResult === 'failed' ? (selfData.results && selfData.results.self_msg) || '' : '';
+                self.addLog(self.user.nickname || '自己', selfResult, selfErrMsg);
             } catch (e) {
                 self.addLog('自己', 'fail');
             }
@@ -1052,7 +1059,9 @@ const app = createApp({
                     var proxyResults = (data.results && data.results.proxy) || [];
                     proxyResults.forEach(function(p) {
                         var name = p.nickname || p.supernova_account || ('好友#' + p.friend_id);
-                        self.addLog(name, p.result === 'success' ? 'success' : 'fail');
+                        var pResult = p.result === 'success' ? 'success' : 'fail';
+                        var pMsg = pResult === 'fail' ? (p.message || '') : '';
+                        self.addLog(name, pResult, pMsg);
                     });
                 } catch (e) {
                     self.addLog('代签', 'fail', '请求失败');

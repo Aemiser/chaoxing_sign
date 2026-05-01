@@ -1,15 +1,16 @@
 """Session 管理 — token → ChaoxingClient 池 + TTL 自动清理"""
 from __future__ import annotations
 import time
-import logging
 from typing import TYPE_CHECKING
 
 from fastapi import HTTPException
 
+from ..logging_config import get_logger
+
 if TYPE_CHECKING:
     from ..client import ChaoxingClient
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 SESSION_TTL_SECONDS = 24 * 3600
 

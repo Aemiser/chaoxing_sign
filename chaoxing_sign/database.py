@@ -3,6 +3,10 @@ from __future__ import annotations
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 
+from .logging_config import get_logger
+
+log = get_logger(__name__)
+
 engine = None
 SessionLocal: sessionmaker[Session] | None = None
 
@@ -11,10 +15,12 @@ def init_db(config: dict):
     """初始化数据库连接"""
     global engine, SessionLocal
     db_cfg = config.get("database", {})
+    host = db_cfg.get("host", "localhost")
+    port = db_cfg.get("port", 3306)
+    database = db_cfg.get("database", "chaoxing_sign")
     url = (
         f"mysql+pymysql://{db_cfg.get('user', 'root')}:{db_cfg.get('password', '')}"
-        f"@{db_cfg.get('host', 'localhost')}:{db_cfg.get('port', 3306)}"
-        f"/{db_cfg.get('database', 'chaoxing_sign')}?charset=utf8mb4"
+        f"@{host}:{port}/{database}?charset=utf8mb4"
     )
     engine = create_engine(
         url,
@@ -25,6 +31,7 @@ def init_db(config: dict):
         connect_args={"connect_timeout": 5},
     )
     SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
+    log.info("数据库已连接: %s:%d/%s", host, port, database)
     return engine
 
 

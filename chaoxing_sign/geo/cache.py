@@ -1,10 +1,11 @@
 """三角定位缓存 — 活动ID → 成功坐标"""
 from __future__ import annotations
 import json
-import logging
 from pathlib import Path
 
-log = logging.getLogger(__name__)
+from ..logging_config import get_logger
+
+log = get_logger(__name__)
 
 LOCATION_CACHE_PATH = Path(__file__).parent.parent.parent / "location_cache.json"
 

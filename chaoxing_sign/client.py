@@ -2,7 +2,6 @@
 from __future__ import annotations
 import re
 import json
-import logging
 from pathlib import Path
 import urllib3
 import requests
@@ -19,8 +18,9 @@ from .core.constants import (
     ANDROID_UA, HEADERS,
 )
 from .core.sign import SignExecutor
+from .logging_config import get_logger
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 class ChaoxingClient:
@@ -363,12 +363,18 @@ class ChaoxingClient:
     # 执行签到
     # ================================================================
 
-    def sign(self, task: SignTask, **kwargs) -> bool:
-        """执行签到 — 委托给 SignExecutor（策略模式）"""
+    def sign(self, task: SignTask, **kwargs) -> "tuple[bool, str]":
+        """执行签到 — 委托给 SignExecutor（策略模式）
+
+        Returns (ok, message)
+        """
         return self._executor.execute(task, **kwargs)
 
-    def sign_with_uid(self, task: SignTask, target_uid: str, **kwargs) -> bool:
-        """为指定 uid 执行签到（代签核心方法）— 委托给 SignExecutor"""
+    def sign_with_uid(self, task: SignTask, target_uid: str, **kwargs) -> "tuple[bool, str]":
+        """为指定 uid 执行签到（代签核心方法）— 委托给 SignExecutor
+
+        Returns (ok, message)
+        """
         return self._executor.execute_with_uid(task, target_uid, **kwargs)
 
     # ── 底层工具（供 SignExecutor 回调） ──
@@ -386,28 +392,31 @@ class ChaoxingClient:
             "fid": "0",
         }
 
-    def _do_sign_get(self, task: SignTask, params: dict) -> bool:
-        """GET 方式调用签到接口，自动处理滑块验证码"""
+    def _do_sign_get(self, task: SignTask, params: dict) -> "tuple[bool, str]":
+        """GET 方式调用签到接口，自动处理滑块验证码
+
+        Returns (ok, message) —  message 包含成功或失败的具体原因。
+        """
         try:
             resp = self.session.get(STUSIGN_URL, params=params, timeout=15)
             text = resp.text.strip()
         except Exception as e:
             log.error("签到请求失败: %s", e)
-            return False
+            return (False, f"网络请求失败: {e}")
 
         if text == "success":
-            return True
+            return (True, "签到成功")
         if "成功" in text or "重复" in text or "已签到" in text:
-            return True
+            return (True, "签到成功")
 
         # 可能返回 JSON
         result = safe_json_loads(text)
         if isinstance(result, dict):
             if result.get("status") is True or result.get("success") is True:
-                return True
+                return (True, "签到成功")
             msg = str(result.get("msg", result.get("message", "")))
             if msg and ("成功" in msg or "重复" in msg):
-                return True
+                return (True, "签到成功")
 
         # 检测是否需要滑块验证码
         need_captcha = (
@@ -415,11 +424,19 @@ class ChaoxingClient:
             or "captcha" in text.lower() or "滑动" in text
             or "拼图" in text
         )
-        if need_captcha :
+        if need_captcha:
             log.warning("需要验证码")
+            return (False, "需要验证码，请在手机端完成签到")
+
+        # 尝试从 JSON 响应中提取具体错误消息
+        if isinstance(result, dict):
+            msg = str(result.get("msg", result.get("message", "")))
+            if msg:
+                log.warning("签到失败: %s", msg)
+                return (False, msg)
 
         log.warning("签到失败, 响应: %s", text[:200])
-        return False
+        return (False, f"签到失败: {text[:200]}")
 
     # ================================================================
     # 账户信息

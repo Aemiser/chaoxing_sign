@@ -3,7 +3,6 @@ from __future__ import annotations
 import re
 import json
 import math
-import logging
 from typing import TYPE_CHECKING
 
 from bs4 import BeautifulSoup
@@ -13,11 +12,12 @@ from ..types import SignTask, SignType
 from ..utils import safe_json_loads, reverse_geocode_amap, extract_enc_from_qr
 from ..trilateration import solve_gn
 from ..geo.cache import load_location_cache, save_location_cache
+from ..logging_config import get_logger
 
 if TYPE_CHECKING:
     from ..client import ChaoxingClient
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 PROBE_POINTS = [
     ("哈尔滨",  45.75, 126.63),
@@ -41,7 +41,7 @@ class SignExecutor:
 
     # ── dispatch ──────────────────────────────────────────────
 
-    def execute(self, task: SignTask, **kwargs) -> bool:
+    def execute(self, task: SignTask, **kwargs) -> "tuple[bool, str]":
         sign_methods = {
             SignType.NORMAL: self._sign_normal,
             SignType.PHOTO: self._sign_photo,
@@ -54,7 +54,7 @@ class SignExecutor:
         method = sign_methods.get(task.sign_type, self._sign_normal)
         return method(task, **kwargs)
 
-    def execute_with_uid(self, task: SignTask, target_uid: str, **kwargs) -> bool:
+    def execute_with_uid(self, task: SignTask, target_uid: str, **kwargs) -> "tuple[bool, str]":
         """为指定 uid 执行签到（代签核心方法）"""
         params = self._client._base_params(task)
         params["uid"] = target_uid
@@ -67,20 +67,20 @@ class SignExecutor:
 
     # ── 普通 / 拍照 / 手势 / 签到码 ─────────────────────────
 
-    def _sign_normal(self, task: SignTask, **kwargs) -> bool:
+    def _sign_normal(self, task: SignTask, **kwargs) -> "tuple[bool, str]":
         return self._client._do_sign_get(task, self._client._base_params(task))
 
-    def _sign_photo(self, task: SignTask, **kwargs) -> bool:
+    def _sign_photo(self, task: SignTask, **kwargs) -> "tuple[bool, str]":
         return self._sign_normal(task, **kwargs)
 
-    def _sign_gesture(self, task: SignTask, **kwargs) -> bool:
+    def _sign_gesture(self, task: SignTask, **kwargs) -> "tuple[bool, str]":
         gesture = kwargs.get("gesture", "")
         params = self._client._base_params(task)
         if gesture:
             params["signCode"] = gesture
         return self._client._do_sign_get(task, params)
 
-    def _sign_code(self, task: SignTask, **kwargs) -> bool:
+    def _sign_code(self, task: SignTask, **kwargs) -> "tuple[bool, str]":
         code = kwargs.get("code", "")
         params = self._client._base_params(task)
         if code:
@@ -89,7 +89,7 @@ class SignExecutor:
 
     # ── 二维码签到 ──────────────────────────────────────────
 
-    def _sign_qrcode(self, task: SignTask, **kwargs) -> bool:
+    def _sign_qrcode(self, task: SignTask, **kwargs) -> "tuple[bool, str]":
         enc = kwargs.get("enc", task.enc or "")
         if not enc:
             qr_content = kwargs.get("qr_content", "")
@@ -97,12 +97,12 @@ class SignExecutor:
                 enc = extract_enc_from_qr(qr_content)
         if not enc:
             log.error("二维码签到缺少 enc 参数")
-            return False
+            return (False, "二维码签到缺少 enc 参数")
         params = self._client._base_params(task)
         params["enc"] = enc
         return self._client._do_sign_get(task, params)
 
-    def _sign_qrcode_location(self, task: SignTask, **kwargs) -> bool:
+    def _sign_qrcode_location(self, task: SignTask, **kwargs) -> "tuple[bool, str]":
         enc = kwargs.get("enc", task.enc or "")
         if not enc:
             qr_content = kwargs.get("qr_content", "")
@@ -110,7 +110,7 @@ class SignExecutor:
                 enc = extract_enc_from_qr(qr_content)
         if not enc:
             log.error("指定位置二维码签到缺少 enc 参数")
-            return False
+            return (False, "指定位置二维码签到缺少 enc 参数")
 
         lng = float(kwargs.get("longitude", task.location_longitude or "116.404"))
         lat = float(kwargs.get("latitude", task.location_latitude or "39.915"))
@@ -136,7 +136,7 @@ class SignExecutor:
 
     # ── 位置签到 ────────────────────────────────────────────
 
-    def _sign_location(self, task: SignTask, **kwargs) -> bool:
+    def _sign_location(self, task: SignTask, **kwargs) -> "tuple[bool, str]":
         # 前端可关闭三角定位：直接提交选中坐标，跳过指定地点求解
         use_trilateration = kwargs.pop("use_trilateration", "1")
         if use_trilateration != "0" and self._check_location_type(task) == "named":
@@ -172,7 +172,7 @@ class SignExecutor:
             log.warning("检查位置签到类型失败: %s", e)
         return "normal"
 
-    # ── 三角定位求解 ────────────────────────────────────────
+    # ──  ────────────────────────────────────────
 
     def _probe(self, task: SignTask, lat: float, lon: float) -> tuple[str, float | None]:
         """发送签到请求并解析结果。
@@ -205,7 +205,7 @@ class SignExecutor:
         log.warning("探测返回未知内容: %s", text[:100])
         return ("error", None)
 
-    def _solve_named_location(self, task: SignTask, **kwargs) -> bool:
+    def _solve_named_location(self, task: SignTask, **kwargs) -> "tuple[bool, str]":
         """指定地点位置签到 — 五探测点 + Gauss-Newton 球面最小二乘求解 + 缓存"""
         # 1. 检查缓存
         cache = load_location_cache()
@@ -217,8 +217,9 @@ class SignExecutor:
             params["latitude"] = str(lat)
             params["longitude"] = str(lon)
             params["address"] = reverse_geocode_amap(float(lat), float(lon)).get("display_name", "")
-            if self._client._do_sign_get(task, params):
-                return True
+            ok, msg = self._client._do_sign_get(task, params)
+            if ok:
+                return (True, msg)
             log.info("缓存坐标签到失败，重新探测")
             del cache[task.active_id]
 
@@ -237,10 +238,10 @@ class SignExecutor:
 
             if text == "success":
                 log.info("探测点 %s 已在签到范围内，直接签到成功", name)
-                return True
+                return (True, "签到成功")
             if "成功" in text or "重复" in text or "已签到" in text:
                 log.info("探测点 %s 签到结果: %s", name, text[:80])
-                return True
+                return (True, "签到成功")
 
             m = re.search(r"距教师指定签到地点([\d.]+)米", text)
             if m:
@@ -252,7 +253,7 @@ class SignExecutor:
 
         if len(distances) < 3:
             log.error("有效探测点不足 3 个（共 %d 个），无法三角定位", len(distances))
-            return False
+            return (False, f"有效探测点不足3个（共{len(distances)}个），无法三角定位")
 
         # 3. 初始猜测 = C(5,3) 组合平面定位均值
         from itertools import combinations
@@ -266,7 +267,7 @@ class SignExecutor:
 
         if not guesses:
             log.error("所有组合均无解")
-            return False
+            return (False, "所有探测点组合均无解，无法定位目标位置")
 
         guess_lat = sum(g[0] for g in guesses) / len(guesses)
         guess_lon = sum(g[1] for g in guesses) / len(guesses)
@@ -282,10 +283,11 @@ class SignExecutor:
             if status == "success":
                 cache[task.active_id] = (target_lat, target_lon)
                 save_location_cache(cache)
-                return True
+                return (True, "签到成功")
             if status != "distance":
                 log.error("中心点探测失败")
-                return False
+                return (False, "中心点探测失败，服务器返回异常")
+
             d_center = val
 
             delta_m = max(50.0, min(200.0, d_center * 0.1))
@@ -295,13 +297,17 @@ class SignExecutor:
             e_lat, e_lon = target_lat, target_lon + math.degrees(delta_deg / cos_tlat)
             status, val = self._probe(task, e_lat, e_lon)
             if status == "success":
-                return True
+                cache[task.active_id] = (target_lat, target_lon)
+                save_location_cache(cache)
+                return (True, "签到成功")
             d_east = val if status == "distance" else d_center
 
             n_lat, n_lon = target_lat + math.degrees(delta_deg), target_lon
             status, val = self._probe(task, n_lat, n_lon)
             if status == "success":
-                return True
+                cache[task.active_id] = (target_lat, target_lon)
+                save_location_cache(cache)
+                return (True, "签到成功")
             d_north = val if status == "distance" else d_center
 
             grad_e = (d_center - d_east) / delta_m
@@ -310,7 +316,7 @@ class SignExecutor:
             grad_mag2 = grad_e * grad_e + grad_n * grad_n
             if grad_mag2 < 1e-15:
                 log.warning("梯度为零，无法继续")
-                return False
+                return (False, "梯度为零，无法继续定位")
 
             scale = d_center / grad_mag2
             move_e = scale * grad_e
@@ -324,4 +330,4 @@ class SignExecutor:
                      round_num + 1, d_center, move_e, move_n, target_lat, target_lon)
 
         log.error("超过最大轮次 %d，签到失败", MAX_GRADIENT_ROUNDS)
-        return False
+        return (False, f"超过最大迭代轮次（{MAX_GRADIENT_ROUNDS}轮），无法收敛到目标位置")

@@ -370,7 +370,7 @@
                     <div v-for="(log, i) in scanLogs" :key="i" class="scan-log-item" :class="'log-' + log.status">
                         <span class="log-time">{{ log.time }}</span>
                         <span class="log-name">{{ log.name }}</span>
-                        <span class="log-status">{{ log.status === 'success' ? '签到成功' : log.status === 'fail' ? '签到失败' : log.text }}</span>
+                        <span class="log-status">{{ log.status === 'success' ? '签到成功' : log.status === 'fail' ? (log.text ? '签到失败: ' + log.text : '签到失败') : log.text }}</span>
                     </div>
                 </div>
             </div>
