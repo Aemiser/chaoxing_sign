@@ -16,8 +16,6 @@ import random
 import re
 import time
 
-import cv2
-import numpy as np
 import requests
 
 # ============================================================
@@ -104,6 +102,9 @@ class _CaptchaSolver:
         return token, new_token, shade, cutout, iv
 
     def _find_gap(self, shade_url: str, cutout_url: str) -> int:
+        import cv2
+        import numpy as np
+
         big_bytes = self.session.get(shade_url).content
         small_bytes = self.session.get(cutout_url).content
 
