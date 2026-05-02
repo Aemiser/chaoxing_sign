@@ -157,8 +157,63 @@ async def api_courses(
     }
 
 
+def _task_to_dict(t, display_type_fn) -> dict:
+    return {
+        "active_id": t.active_id, "name": t.name,
+        "sign_type": display_type_fn(t), "sign_type_label": t.sign_type.value,
+        "status": t.status, "signed": getattr(t, "signed", False),
+        "start_time": t.start_time, "end_time": t.end_time,
+        "course_name": t.course_name,
+        "location_name": getattr(t, "location_name", ""),
+    }
+
+
+def _display_type_st(st: SignType, location_name: str = "") -> str:
+    """返回前端显示的 sign_type（基于 SignType + location_name）。"""
+    if st in (SignType.QRCODE, SignType.QRCODE_LOCATION):
+        return "qrcode_location"
+    if st == SignType.LOCATION:
+        if location_name:
+            return "location_named"
+        return "location"
+    return st.value
+
+
+def _display_type(t):
+    """返回前端显示的 sign_type（基于 SignTask 对象）。"""
+    return _display_type_st(t.sign_type, getattr(t, "location_name", ""))
+
+
 @router.get("/tasks/{course_id}/{class_id}")
-async def api_tasks(course_id: str, class_id: str, token: str = Query(...)):
+async def api_tasks(course_id: str, class_id: str, token: str = Query(...),
+                    sync: int = Query(0, description="1=强制同步，跳过缓存直接请求超星 API")):
+    from ..redis_client import get_cached_tasks, delete_cached_tasks
+
+    # sync=1：清除缓存，强制请求 API
+    if sync:
+        delete_cached_tasks(course_id, class_id)
+    else:
+        # 缓存优先：从 Redis 读取各任务独立缓存
+        cached = get_cached_tasks(course_id, class_id)
+        if cached:
+            task_dicts = []
+            for it in cached:
+                st = SignType.from_chinese(it.get("name", ""))
+                task_dicts.append({
+                    "active_id": str(it.get("active_id", "")),
+                    "name": it.get("name", ""),
+                    "sign_type": _display_type_st(st),
+                    "sign_type_label": st.value,
+                    "status": "active",
+                    "signed": False,
+                    "start_time": str(it.get("startTime", "")),
+                    "end_time": "",
+                    "course_name": "",
+                    "location_name": "",
+                })
+            return {"ok": True, "tasks": task_dicts, "cached": True}
+
+    # 缓存未命中：请求超星 API（get_sign_tasks 内部会逐任务缓存）
     c = deps.get_client(token)
     course = Course(course_id=course_id, class_id=class_id, name="")
     tasks = c.get_sign_tasks(course, check_signed=True)
@@ -175,34 +230,7 @@ async def api_tasks(course_id: str, class_id: str, token: str = Query(...)):
             except Exception:
                 pass
 
-    def _display_type(t):
-        """返回前端显示的 sign_type。
-        QRCODE/QRCODE_LOCATION 统一进入带地图扫码页面；
-        LOCATION 有 location_name 时显示 location_named，无则为 location，
-        二者进入同一个位置签到页面，三角定位开关由 sign__show_trilateration 配置控制。
-        """
-        if t.sign_type in (SignType.QRCODE, SignType.QRCODE_LOCATION):
-            return "qrcode_location"
-        if t.sign_type == SignType.LOCATION:
-            if getattr(t, "location_name", ""):
-                return "location_named"
-            return "location"
-        return t.sign_type.value
-
-    return {
-        "ok": True,
-        "tasks": [
-            {
-                "active_id": t.active_id, "name": t.name,
-                "sign_type": _display_type(t), "sign_type_label": t.sign_type.value,
-                "status": t.status, "signed": getattr(t, "signed", False),
-                "start_time": t.start_time, "end_time": t.end_time,
-                "course_name": t.course_name,
-                "location_name": getattr(t, "location_name", ""),
-            }
-            for t in tasks
-        ],
-    }
+    return {"ok": True, "tasks": [_task_to_dict(t, _display_type) for t in tasks]}
 
 
 @router.get("/active-courses")

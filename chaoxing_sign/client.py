@@ -241,6 +241,8 @@ class ChaoxingClient:
             log.error("获取活动列表失败: %s", e)
             return []
 
+        from .redis_client import cache_sign_task
+
         tasks: list[SignTask] = []
 
         for item in data.get("activeList", []):
@@ -273,6 +275,9 @@ class ChaoxingClient:
                 end_time=str(item.get("endTime", "")),
                 raw_url=raw_url,
             )
+
+            # 缓存活跃任务到 Redis（TTL = 活动结束时间），已结束的不缓存
+            cache_sign_task(item, course.course_id, course.class_id)
 
             # 仅在需要时检测已签到状态（避免不必要请求）
             if check_signed and task.status == "active" and task.active_id:

@@ -144,7 +144,7 @@
         <nav class="navbar">
             <span class="nav-btn" @click="currentPage = 'courses'"><span class="material-symbols-outlined">chevron_left</span></span>
             <span class="navbar-title">{{ currentCourseName }}</span>
-            <span class="nav-btn invisible"><span class="material-symbols-outlined">more_horiz</span></span>
+            <span class="nav-btn text-btn" @click="syncTasks" :style="{opacity: syncingTasks ? 0.5 : 1}"><span class="material-symbols-outlined" style="font-size:20px">sync</span></span>
         </nav>
         <div class="page-content">
             <div v-if="loadingTasks" class="loading"><span class="spinner"></span></div>

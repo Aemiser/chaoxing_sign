@@ -10,3 +10,4 @@ pymysql>=1.0.0
 pyjwt>=2.0.0
 eval_type_backport>=0.2.0
 pydantic-settings>=2.0.0
+redis>=5.0.0

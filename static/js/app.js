@@ -37,12 +37,13 @@ const app = createApp({
             activeTasks: [],
             endedTasks: [],
             loadingTasks: false,
+            syncingTasks: false,
 
             // 签到类型
             typeLabels: {
                 normal: '普通签到', photo: '拍照签到', gesture: '手势签到',
                 location: '位置签到', location_named: '指定位置签到',
-                qrcode: '二维码签到', qrcode_location: '指定位置二维码签到',
+                qrcode: '二维码签到', qrcode_location: '二维码签到',
                 code: '签到码签到',
             },
 
@@ -281,6 +282,21 @@ const app = createApp({
                 self.activeTasks = [];
                 self.endedTasks = [];
             } finally { self.loadingTasks = false; }
+        },
+
+        syncTasks: async function() {
+            var self = this;
+            if (self.syncingTasks) return;
+            self.syncingTasks = true;
+            try {
+                var data = await self.api('GET', '/tasks/' + self.currentCourseId + '/' + self.currentClassId, { sync: 1 });
+                var tasks = data.tasks || [];
+                self.activeTasks = tasks.filter(function(t) { return t.status === 'active'; });
+                self.endedTasks = tasks.filter(function(t) { return t.status !== 'active'; });
+                self.toast('签到任务已同步');
+            } catch (e) {
+                self.toast('同步失败');
+            } finally { self.syncingTasks = false; }
         },
 
         // 签到

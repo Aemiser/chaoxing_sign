@@ -91,6 +91,12 @@ class AppSettings(BaseSettings):
     # --------- 腾讯地图 ---------
     tmap_key: str = ""
 
+    # --------- Redis ---------
+    redis_host: str = "localhost"
+    redis_port: int = 6379
+    redis_db: int = 0
+    redis_password: str = ""
+
     # --------- 签到 ---------
     sign__show_trilateration: bool = True
 
@@ -124,6 +130,12 @@ class AppSettings(BaseSettings):
             "amap_key_info": self.amap_key_info,
             "amap_version": self.amap_version,
             "tmap_key": self.tmap_key,
+            "redis": {
+                "host": self.redis_host,
+                "port": self.redis_port,
+                "db": self.redis_db,
+                "password": self.redis_password,
+            },
             "sign": {
                 "show_trilateration": self.sign__show_trilateration,
             },
