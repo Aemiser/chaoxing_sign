@@ -9,6 +9,7 @@
     validate = solve_captcha(client.session)
     # 将 validate 传入签到请求
 """
+from __future__ import annotations
 
 import hashlib
 import json
