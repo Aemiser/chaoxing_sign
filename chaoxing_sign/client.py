@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 import json
 from pathlib import Path
+from pprint import pprint
+
 import urllib3
 import requests
 
@@ -237,6 +239,7 @@ class ChaoxingClient:
                 "showNotStartedActive": "0",
             }, timeout=15)
             data = resp.json()
+            pprint(data)
         except Exception as e:
             log.error("获取活动列表失败: %s", e)
             return []
@@ -405,9 +408,12 @@ class ChaoxingClient:
         Returns (ok, message) —  message 包含成功或失败的具体原因。
         """
         from .utils.captcha import solve_captcha
-        validate = solve_captcha(self.session, referer=STUSIGN_URL)
-        if validate:
-            params["validate"] = validate
+        try:
+            validate = solve_captcha(self.session, referer=STUSIGN_URL)
+            if validate:
+                params["validate"] = validate
+        except Exception as e:
+            log.debug("滑块验证码处理失败（可能不需要验证码）: %s", e)
 
         try:
             resp = self.session.get(STUSIGN_URL, params=params, timeout=15)
