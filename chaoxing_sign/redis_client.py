@@ -2,7 +2,10 @@
 from __future__ import annotations
 import logging
 
-import redis
+try:
+    import redis
+except ImportError:
+    redis = None
 
 from .config import config as cfg
 
@@ -10,9 +13,11 @@ logger = logging.getLogger(__name__)
 _client: redis.Redis | None = None
 
 
-def get_redis() -> redis.Redis | None:
+def get_redis():
     """获取 Redis 客户端（单例），连接失败返回 None"""
     global _client
+    if redis is None:
+        return None
     if _client is not None:
         return _client
 
@@ -64,12 +69,12 @@ def cache_sign_task(task_item: dict, course_id: str, class_id: str) -> bool:
     # 计算 TTL：从 nameTwo 提取结束时间
     ttl = _parse_ttl(task_item.get("nameTwo", ""))
     if ttl is None:
-        # nameTwo 不存在时尝试用 startTime 推算（+24h）
+        # nameTwo 不存在时尝试用 startTime 推算（+1h）
         start_ts = task_item.get("startTime")
         if isinstance(start_ts, (int, float)) and start_ts > 0:
-            ttl = max(3600, int(start_ts / 1000) + 86400 - _now())
+            ttl = max(3600, int(start_ts / 1000) + 3600 - _now())
         else:
-            ttl = 86400  # 默认 1 天
+            ttl = 3600  # 默认 1 h
 
     try:
         import json
