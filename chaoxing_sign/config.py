@@ -91,6 +91,9 @@ class AppSettings(BaseSettings):
     # --------- 腾讯地图 ---------
     tmap_key: str = ""
 
+    # --------- 签到 ---------
+    sign__show_trilateration: bool = True
+
     @property
     def phone(self) -> str:
         return self.CHAOXING_PHONE
@@ -121,6 +124,9 @@ class AppSettings(BaseSettings):
             "amap_key_info": self.amap_key_info,
             "amap_version": self.amap_version,
             "tmap_key": self.tmap_key,
+            "sign": {
+                "show_trilateration": self.sign__show_trilateration,
+            },
             "log": {
                 "level": self.log.level,
                 "console": self.log.console,

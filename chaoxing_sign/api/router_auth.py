@@ -13,7 +13,7 @@ from .. import ChaoxingClient
 from ..auth.jwt import create_jwt
 from ..auth.session import SessionManager
 from .. import database as db_module
-from ..models import User, UserSession
+from ..models import User, UserSession, CourseRecord
 from ..logging_config import get_logger
 
 from . import deps
@@ -134,6 +134,47 @@ def _get_or_create_user(db: Session, supernova_account: str, nickname: str = "")
     return user
 
 
+def _save_courses(db: Session, user_id: int, client: ChaoxingClient):
+    """拉取课程列表并存入数据库"""
+    try:
+        courses = client.get_courses()
+    except Exception as e:
+        log.warning("拉取课程列表失败: user_id=%d error=%s", user_id, e)
+        return
+
+    if not courses:
+        return
+
+    try:
+        for course in courses:
+            existing = (
+                db.query(CourseRecord)
+                .filter(
+                    CourseRecord.user_id == user_id,
+                    CourseRecord.course_id == course.course_id,
+                    CourseRecord.class_id == course.class_id,
+                )
+                .first()
+            )
+            if existing:
+                existing.name = course.name
+                existing.teacher = course.teacher
+                existing.cover_url = course.cover_url
+            else:
+                db.add(CourseRecord(
+                    user_id=user_id,
+                    course_id=course.course_id,
+                    class_id=course.class_id,
+                    name=course.name,
+                    teacher=course.teacher,
+                    cover_url=course.cover_url,
+                ))
+        db.commit()
+        log.info("课程列表已存入数据库: user_id=%d count=%d", user_id, len(courses))
+    except Exception as e:
+        log.warning("保存课程列表失败: user_id=%d error=%s", user_id, e)
+
+
 @router.post("/login")
 async def api_login(phone: str = Query(...), password: str = Query(...)):
     if _session_manager is None:
@@ -156,6 +197,15 @@ async def api_login(phone: str = Query(...), password: str = Query(...)):
                     _save_user_session(db, user.id, saved)
                     jwt_token = create_jwt(user.id)
                     log.info("复用已保存会话: phone=%s uid=%s", _mask_phone(phone), saved.uid)
+                    # 后台更新课程缓存
+                    def _bg_save_courses():
+                        try:
+                            dbc = db_module.SessionLocal()
+                            _save_courses(dbc, user.id, saved)
+                            dbc.close()
+                        except Exception as e:
+                            log.warning("后台更新课程缓存失败: %s", e)
+                    threading.Thread(target=_bg_save_courses, daemon=True).start()
                     return {
                         "ok": True, "token": token, "uid": saved.uid,
                         "name": saved.name or phone, "jwt": jwt_token,
@@ -198,7 +248,7 @@ async def api_login(phone: str = Query(...), password: str = Query(...)):
             user.username = phone
             db.commit()
             _save_user_session(db, user.id, client)
-            # 后台更新用户信息
+            # 后台更新用户信息 + 课程缓存
             def _bg_enrich():
                 try:
                     account_info = client.get_account_info()
@@ -214,6 +264,8 @@ async def api_login(phone: str = Query(...), password: str = Query(...)):
                     if local_avatar: u.avatar = local_avatar
                     if nickname and u.nickname == u.supernova_account: u.nickname = nickname
                     db2.commit()
+                    # 更新课程缓存
+                    _save_courses(db2, user.id, client)
                     db2.close()
                 except Exception as e:
                     log.warning("后台更新用户信息失败: %s", e)
@@ -230,6 +282,15 @@ async def api_login(phone: str = Query(...), password: str = Query(...)):
             if school: user.school = school
             db.commit()
             _save_user_session(db, user.id, client)
+            # 后台拉取课程列表
+            def _bg_save_courses_new():
+                try:
+                    dbc = db_module.SessionLocal()
+                    _save_courses(dbc, user.id, client)
+                    dbc.close()
+                except Exception as e:
+                    log.warning("后台保存新用户课程失败: %s", e)
+            threading.Thread(target=_bg_save_courses_new, daemon=True).start()
             if avatar_url and (avatar_url.startswith("http") or avatar_url.startswith("//")):
                 def _dl_avatar():
                     try:

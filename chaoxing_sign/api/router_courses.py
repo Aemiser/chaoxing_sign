@@ -6,10 +6,13 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests as req
 from bs4 import BeautifulSoup
 from fastapi import APIRouter, Query
+from sqlalchemy.orm import Session
 
 from .. import SignType
 from ..types import Course
+from ..models import CourseRecord
 from ..logging_config import get_logger
+from .. import database as db_module
 from . import deps
 
 log = get_logger(__name__)
@@ -72,9 +75,75 @@ def _query_course_active(cookies: dict, course) -> tuple:
 
 
 @router.get("/courses")
-async def api_courses(token: str = Query(...)):
+async def api_courses(
+    token: str = Query(...),
+    source: int = Query(0, description="0=从数据库读取, 1=从超星API获取并更新数据库"),
+    user_id: int = Query(0, description="用户ID，source=0时需要"),
+):
+    deps.get_client(token)
+
+    if source == 0:
+        if not user_id:
+            return {"ok": True, "courses": [], "source": "db", "error": "缺少 user_id"}
+        db: Session = db_module.get_db()
+        try:
+            records = (
+                db.query(CourseRecord)
+                .filter(CourseRecord.user_id == user_id)
+                .order_by(CourseRecord.updated_at.desc())
+                .all()
+            )
+            courses = [
+                {
+                    "course_id": r.course_id,
+                    "class_id": r.class_id,
+                    "name": r.name,
+                    "teacher": r.teacher,
+                    "cover_url": r.cover_url,
+                }
+                for r in records
+            ]
+            log.info("从数据库读取课程: user_id=%d count=%d", user_id, len(courses))
+            return {"ok": True, "courses": courses, "source": "db"}
+        finally:
+            db.close()
+
+    # source=1: 从超星 API 获取并更新数据库
     c = deps.get_client(token)
     courses = c.get_courses()
+    if courses and user_id:
+        db: Session = db_module.get_db()
+        try:
+            for course in courses:
+                existing = (
+                    db.query(CourseRecord)
+                    .filter(
+                        CourseRecord.user_id == user_id,
+                        CourseRecord.course_id == course.course_id,
+                        CourseRecord.class_id == course.class_id,
+                    )
+                    .first()
+                )
+                if existing:
+                    existing.name = course.name
+                    existing.teacher = course.teacher
+                    existing.cover_url = course.cover_url
+                else:
+                    db.add(CourseRecord(
+                        user_id=user_id,
+                        course_id=course.course_id,
+                        class_id=course.class_id,
+                        name=course.name,
+                        teacher=course.teacher,
+                        cover_url=course.cover_url,
+                    ))
+            db.commit()
+            log.info("课程列表已同步: user_id=%d count=%d", user_id, len(courses))
+        except Exception as e:
+            log.error("同步课程列表失败: %s", e)
+        finally:
+            db.close()
+
     return {
         "ok": True,
         "courses": [
@@ -84,6 +153,7 @@ async def api_courses(token: str = Query(...)):
             }
             for co in courses
         ],
+        "source": "api",
     }
 
 
@@ -106,8 +176,17 @@ async def api_tasks(course_id: str, class_id: str, token: str = Query(...)):
                 pass
 
     def _display_type(t):
-        if t.sign_type == SignType.LOCATION and getattr(t, "location_name", ""):
-            return "location_named"
+        """返回前端显示的 sign_type。
+        QRCODE/QRCODE_LOCATION 统一进入带地图扫码页面；
+        LOCATION 有 location_name 时显示 location_named，无则为 location，
+        二者进入同一个位置签到页面，三角定位开关由 sign__show_trilateration 配置控制。
+        """
+        if t.sign_type in (SignType.QRCODE, SignType.QRCODE_LOCATION):
+            return "qrcode_location"
+        if t.sign_type == SignType.LOCATION:
+            if getattr(t, "location_name", ""):
+                return "location_named"
+            return "location"
         return t.sign_type.value
 
     return {
@@ -119,6 +198,7 @@ async def api_tasks(course_id: str, class_id: str, token: str = Query(...)):
                 "status": t.status, "signed": getattr(t, "signed", False),
                 "start_time": t.start_time, "end_time": t.end_time,
                 "course_name": t.course_name,
+                "location_name": getattr(t, "location_name", ""),
             }
             for t in tasks
         ],

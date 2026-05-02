@@ -20,6 +20,7 @@ const app = createApp({
             // 加载状态
             loadingActive: false,
             loadingCourses: false,
+            syncingCourses: false,
             loadingFriends: false,
 
             // 课程
@@ -82,8 +83,9 @@ const app = createApp({
             _scanMap: null,
             _locationMarker: null,
             locating: false,
-            useTrilateration: true,  // 指定地点位置签到：是否启用三角定位求解
-            isNamedLocation: false,
+            useTrilateration: true,
+            showTrilateration: true,  // 三角定位开关，由后端 sign__show_trilateration 配置控制
+            taskLocationName: '',     // 教师设置的指定签到地点名称
         };
     },
 
@@ -240,10 +242,24 @@ const app = createApp({
             var self = this;
             self.loadingCourses = true;
             try {
-                var data = await self.api('GET', '/courses');
+                var data = await self.api('GET', '/courses', { source: 0, user_id: self.user.id || 0 });
                 self.courses = data.courses || [];
             } catch (e) { self.courses = []; }
             finally { self.loadingCourses = false; }
+        },
+
+        syncCourses: async function() {
+            var self = this;
+            if (self.syncingCourses) return;
+            self.syncingCourses = true;
+            self.toast('正在同步课程...');
+            try {
+                var data = await self.api('GET', '/courses', { source: 1, user_id: self.user.id || 0 });
+                self.courses = data.courses || [];
+                self.toast('课程同步完成，共 ' + self.courses.length + ' 门课程');
+            } catch (e) {
+                self.toast('课程同步失败');
+            } finally { self.syncingCourses = false; }
         },
 
         openTasks: function(course) {
@@ -269,13 +285,12 @@ const app = createApp({
 
         // 签到
         startSign: function(task) {
-            var interactive = ['qrcode', 'code', 'gesture', 'location', 'location_named', 'qrcode_location'];
+            var interactive = ['qrcode', 'qrcode_location', 'code', 'gesture', 'location', 'location_named'];
             if (interactive.indexOf(task.sign_type) !== -1) {
-                this.signMode = task.sign_type === 'qrcode_location' ? 'qrcode_location'
-                    : task.sign_type === 'code' ? 'code'
+                this.signMode = task.sign_type === 'code' ? 'code'
                     : task.sign_type === 'gesture' ? 'gesture'
                     : task.sign_type === 'location' || task.sign_type === 'location_named' ? 'location'
-                    : 'qrcode';
+                    : 'qrcode_location';
                 this.selectedFriends = [];
                 this.scanLogs = [];
                 this.signCodeInput = '';
@@ -287,14 +302,16 @@ const app = createApp({
                 this.locationSearch = '';
                 this.scannedQrData = '';
                 this.scannedEnc = '';
-                this.useTrilateration = true;
-                this.isNamedLocation = task.sign_type === 'location_named' || task.sign_type === 'qrcode_location';
+                this.useTrilateration = this.showTrilateration;
+                this.taskLocationName = task.location_name || '';
                 this.currentTask = task;
                 this.currentPage = 'scan';
                 var self = this;
                 if (this.signMode === 'gesture') { nextTick(function() { self.gestureInitCanvas(); }); }
                 if (this.signMode === 'location') { nextTick(function() { self.initScanMap(); }); }
                 if (this.signMode === 'qrcode_location') { nextTick(function() { self.initScanMap(); }); }
+            } else {
+                this.doDirectSign(task);
             }
         },
 
@@ -311,14 +328,15 @@ const app = createApp({
             this.locationSearch = '';
             this.scannedQrData = '';
             this.scannedEnc = '';
-            this.useTrilateration = true;
-            this.isNamedLocation = task.sign_type === 'location_named' || task.sign_type === 'qrcode_location';
+            this.useTrilateration = this.showTrilateration;
+            this.taskLocationName = task.location_name || '';
             this.currentTask = task;
-            if (task.sign_type === 'code') this.signMode = 'code';
+            if (task.sign_type === 'normal') this.signMode = 'normal';
+            else if (task.sign_type === 'photo') this.signMode = 'photo';
+            else if (task.sign_type === 'code') this.signMode = 'code';
             else if (task.sign_type === 'gesture') this.signMode = 'gesture';
             else if (task.sign_type === 'location' || task.sign_type === 'location_named') this.signMode = 'location';
-            else if (task.sign_type === 'qrcode_location') this.signMode = 'qrcode_location';
-            else this.signMode = 'qrcode';
+            else this.signMode = 'qrcode_location';
             this.currentPage = 'scan';
             var self = this;
             if (this.signMode === 'location') { nextTick(function() { self.initScanMap(); }); }
@@ -345,6 +363,90 @@ const app = createApp({
             } catch (e) {} finally {
                 self.signing = false;
             }
+        },
+
+        // 普通签到代签
+        doNormalProxySign: async function() {
+            var self = this;
+            if (self.signing) return;
+            self.scanLogs = [];
+            self.signing = true;
+            self.addLog('系统', 'info', '普通签到代签');
+
+            try {
+                var selfData = await self.api('POST', '/sign', {
+                    active_id: self.currentTask ? self.currentTask.active_id : '',
+                    course_id: self.currentTask ? self.currentCourseId : '',
+                    class_id: self.currentTask ? self.currentClassId : '',
+                    sign_type: 'normal',
+                });
+                if (selfData.ok) self.addLog(self.user.nickname || '自己', 'success');
+                else self.addLog(self.user.nickname || '自己', 'fail', selfData.message || '');
+            } catch (e) { self.addLog('自己', 'fail'); }
+
+            if (self.selectedFriends.length > 0) {
+                for (var i = 0; i < self.selectedFriends.length; i++) {
+                    var fid = self.selectedFriends[i];
+                    var friend = self.friends.find(function(f) { return f.id === fid; });
+                    var name = friend ? friend.nickname : ('好友#' + fid);
+                    try {
+                        var data = await self.api('POST', '/sign', {
+                            active_id: self.currentTask ? self.currentTask.active_id : '',
+                            course_id: self.currentTask ? self.currentCourseId : '',
+                            class_id: self.currentTask ? self.currentClassId : '',
+                            friend_id: fid,
+                            sign_type: 'normal',
+                        });
+                        if (data.ok) self.addLog(name, 'success');
+                        else self.addLog(name, 'fail', data.message || '');
+                    } catch (e) { self.addLog(name, 'fail'); }
+                }
+            }
+            self.signing = false;
+            self.addLog('系统', 'info', '签到完成');
+            if (self.currentTask) { setTimeout(function() { self.loadTasks(); }, 1500); }
+        },
+
+        // 拍照签到代签
+        doPhotoProxySign: async function() {
+            var self = this;
+            if (self.signing) return;
+            self.scanLogs = [];
+            self.signing = true;
+            self.addLog('系统', 'info', '拍照签到代签');
+
+            try {
+                var selfData = await self.api('POST', '/sign', {
+                    active_id: self.currentTask ? self.currentTask.active_id : '',
+                    course_id: self.currentTask ? self.currentCourseId : '',
+                    class_id: self.currentTask ? self.currentClassId : '',
+                    sign_type: 'photo',
+                });
+                if (selfData.ok) self.addLog(self.user.nickname || '自己', 'success');
+                else self.addLog(self.user.nickname || '自己', 'fail', selfData.message || '');
+            } catch (e) { self.addLog('自己', 'fail'); }
+
+            if (self.selectedFriends.length > 0) {
+                for (var i = 0; i < self.selectedFriends.length; i++) {
+                    var fid = self.selectedFriends[i];
+                    var friend = self.friends.find(function(f) { return f.id === fid; });
+                    var name = friend ? friend.nickname : ('好友#' + fid);
+                    try {
+                        var data = await self.api('POST', '/sign', {
+                            active_id: self.currentTask ? self.currentTask.active_id : '',
+                            course_id: self.currentTask ? self.currentCourseId : '',
+                            class_id: self.currentTask ? self.currentClassId : '',
+                            friend_id: fid,
+                            sign_type: 'photo',
+                        });
+                        if (data.ok) self.addLog(name, 'success');
+                        else self.addLog(name, 'fail', data.message || '');
+                    } catch (e) { self.addLog(name, 'fail'); }
+                }
+            }
+            self.signing = false;
+            self.addLog('系统', 'info', '签到完成');
+            if (self.currentTask) { setTimeout(function() { self.loadTasks(); }, 1500); }
         },
 
         // ============================================================
@@ -1110,6 +1212,10 @@ const app = createApp({
             }
             if (configData.tmap_key) {
                 localStorage.setItem('cx_tmap_key', configData.tmap_key);
+            }
+            var signCfg = configData.sign || {};
+            if (typeof signCfg.show_trilateration === 'boolean') {
+                self.showTrilateration = signCfg.show_trilateration;
             }
         } catch (e) {}
 

@@ -33,6 +33,25 @@ class Friendship(Base):
     __table_args__ = (UniqueConstraint("user_id", "friend_id"),)
 
 
+class CourseRecord(Base):
+    """用户课程缓存表 — 首次登录时从超星 API 拉取并存储，后续可同步更新"""
+    __tablename__ = "course_records"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    user_id = Column(BigInteger, ForeignKey("users.id"), nullable=False, index=True)
+    course_id = Column(String(64), nullable=False)
+    class_id = Column(String(64), nullable=False)
+    name = Column(String(256), default="")
+    teacher = Column(String(128), default="")
+    cover_url = Column(String(512), default="")
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "course_id", "class_id", name="uq_user_course"),
+    )
+
+
 class ProxyRecord(Base):
     __tablename__ = "proxy_records"
 

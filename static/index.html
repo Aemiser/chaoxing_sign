@@ -112,7 +112,10 @@
         <nav class="navbar">
             <span class="nav-btn" @click="currentPage = 'home'"><span class="material-symbols-outlined">chevron_left</span></span>
             <span class="navbar-title">课程</span>
-            <span class="nav-btn invisible"><span class="material-symbols-outlined">more_horiz</span></span>
+            <span class="nav-btn text-btn" @click="syncCourses" :class="{disabled: syncingCourses}">
+                <span class="material-symbols-outlined" style="font-size:18px;vertical-align:-4px;margin-right:2px">sync</span>
+                {{ syncingCourses ? '同步中...' : '同步' }}
+            </span>
         </nav>
         <div class="search-box">
             <span class="material-symbols-outlined search-icon">search</span>
@@ -158,7 +161,7 @@
                     </div>
                     <span v-if="t.signed" style="display:flex;gap:6px;flex-shrink:0">
                         <span class="chip chip-success" style="opacity:0.7">已签</span>
-                        <button v-if="t.sign_type !== 'normal' && t.sign_type !== 'photo'" class="chip chip-warning chip-btn"
+                        <button class="chip chip-warning chip-btn"
                                 @click="startProxySign(t)">代签</button>
                     </span>
                     <button v-else class="chip chip-btn"
@@ -181,7 +184,7 @@
     <section v-if="currentPage === 'scan'" class="page active">
         <nav class="navbar">
             <span class="nav-btn" @click="exitScanPage"><span class="material-symbols-outlined">chevron_left</span></span>
-            <span class="navbar-title">{{ signMode === 'code' ? '签到码签到' : signMode === 'gesture' ? '手势签到' : signMode === 'location' ? '位置签到' : signMode === 'qrcode_location' ? '指定位置扫码签到' : '扫二维码签到' }}</span>
+            <span class="navbar-title">{{ signMode === 'normal' ? '普通签到' : signMode === 'photo' ? '拍照签到' : signMode === 'code' ? '签到码签到' : signMode === 'gesture' ? '手势签到' : signMode === 'location' ? '位置签到' : signMode === 'qrcode_location' ? '扫二维码签到' : '扫二维码签到' }}</span>
             <span class="nav-btn invisible"><span class="material-symbols-outlined">more_horiz</span></span>
         </nav>
         <div class="page-content scan-page-content">
@@ -213,6 +216,15 @@
                 <canvas id="qr-canvas" style="display:none"></canvas>
             </div>
 
+            <!-- 普通签到 / 拍照签到代签区 -->
+            <div v-if="signMode === 'normal' || signMode === 'photo'" class="scan-action-bar">
+                <span class="scan-action-title">帮助同学</span>
+                <button class="btn btn-filled" @click="signMode === 'normal' ? doNormalProxySign() : doPhotoProxySign()"
+                        :disabled="signing" style="flex-shrink:0;white-space:nowrap;padding:0 20px">
+                    {{ signing ? '签到中...' : '确认代签' }}
+                </button>
+            </div>
+
             <!-- 指定位置二维码签到区：扫码 + 地图选点 -->
             <div v-if="signMode === 'qrcode_location'" class="qrcode-location-area">
                 <div v-if="scannedQrData" class="qr-scanned-status">
@@ -223,6 +235,11 @@
                 <div v-else class="qr-scanned-status qr-scanned-wait">
                     <span class="material-symbols-outlined" style="font-size:18px;vertical-align:-4px;margin-right:6px;color:var(--m3-outline)">qr_code</span>
                     <span>请先扫描二维码</span>
+                </div>
+                <div v-if="taskLocationName" class="location-info-bar"
+                     style="background:var(--m3-primary-container);border-radius:12px;padding:10px 14px;margin:0 4px 8px">
+                    <span class="material-symbols-outlined" style="font-size:18px;color:var(--m3-primary)">pin_drop</span>
+                    <span style="font-size:var(--m3-body-sm);color:var(--m3-on-primary-container)">{{ taskLocationName }}</span>
                 </div>
                 <div id="scan-location-map" class="scan-location-map"></div>
                 <div class="location-info-bar" v-if="locationName">
@@ -242,7 +259,7 @@
                         <span v-else class="material-symbols-outlined" style="font-size:18px">my_location</span>
                     </button>
                 </div>
-                <div class="location-trilateration-toggle">
+                <div v-if="showTrilateration" class="location-trilateration-toggle">
                     <label class="toggle-switch">
                         <input type="checkbox" v-model="useTrilateration">
                         <span class="toggle-slider"></span>
@@ -283,6 +300,11 @@
 
             <!-- 位置签到区：高德地图 AMap 选点 -->
             <div v-if="signMode === 'location'" class="location-area">
+                <div v-if="taskLocationName" class="location-info-bar"
+                     style="background:var(--m3-primary-container);border-radius:12px;padding:10px 14px;margin:0 4px 8px">
+                    <span class="material-symbols-outlined" style="font-size:18px;color:var(--m3-primary)">pin_drop</span>
+                    <span style="font-size:var(--m3-body-sm);color:var(--m3-on-primary-container)">{{ taskLocationName }}</span>
+                </div>
                 <div id="scan-location-map" class="scan-location-map"></div>
                 <div class="location-info-bar" v-if="locationName">
                     <span class="material-symbols-outlined" style="font-size:16px;vertical-align:-3px;margin-right:4px;color:var(--m3-primary)">location_on</span>
@@ -301,7 +323,7 @@
                         <span v-else class="material-symbols-outlined" style="font-size:18px">my_location</span>
                     </button>
                 </div>
-                <div v-if="isNamedLocation" class="location-trilateration-toggle">
+                <div v-if="showTrilateration" class="location-trilateration-toggle">
                     <label class="toggle-switch">
                         <input type="checkbox" v-model="useTrilateration">
                         <span class="toggle-slider"></span>
