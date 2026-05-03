@@ -21,6 +21,8 @@ router = APIRouter(prefix="/api", tags=["courses"])
 
 def _query_course_active(cookies: dict, course) -> tuple:
     """单个课程活跃任务查询（线程安全，使用独立 session）"""
+    from ..redis_client import cache_sign_task, update_cached_task_location
+
     s = req.Session()
     s.headers.update({
         "User-Agent": "Dalvik/2.1.0 (Linux; U; Android 13; SM-G981B Build/TP1A.220624.014) com.chaoxing.mobile/ChaoXingStudy_3.0_48_20231201_android",
@@ -54,6 +56,7 @@ def _query_course_active(cookies: dict, course) -> tuple:
             if m:
                 active_id = m.group(1)
 
+        location_name = ""
         if st_raw in ("qrcode", "location") and raw_url:
             try:
                 resp2 = s.get(raw_url, timeout=10)
@@ -61,9 +64,21 @@ def _query_course_active(cookies: dict, course) -> tuple:
                 el = soup.select_one("#ifopenAddress")
                 if el and el.get("value") == "1":
                     st_raw = "qrcode_location" if st_raw == "qrcode" else "location_named"
+                    loc_el = soup.select_one("#locationText")
+                    if loc_el and loc_el.get("value"):
+                        location_name = loc_el.get("value")
                     log.info("检测到指定地点签到: %s → %s", name, active_id)
             except Exception:
                 pass
+
+        # 写入 Redis 缓存
+        cache_sign_task(item, course.course_id, course.class_id)
+
+        # 如果有指定位置名称，更新缓存
+        if location_name and active_id:
+            update_cached_task_location(
+                course.course_id, course.class_id, active_id, location_name
+            )
 
         active.append({
             "active_id": active_id, "name": name, "sign_type": st_raw,
@@ -72,7 +87,7 @@ def _query_course_active(cookies: dict, course) -> tuple:
             "start_time": str(item.get("startTime", "")),
             "end_time": str(item.get("endTime", "")),
             "course_name": course.name,
-            "location_name": "",
+            "location_name": location_name,
         })
     return (course, active)
 

@@ -153,23 +153,48 @@ def update_cached_task_location(course_id: str, class_id: str, active_id: str, l
     """更新已缓存签到任务的指定位置名称"""
     if not location_name:
         return
+    _update_cached_fields(course_id, class_id, active_id, {"location_name": location_name})
+
+
+def update_cached_task_detail(course_id: str, class_id: str, active_id: str,
+                               sign_type: str = "", enc: str = "",
+                               location_name: str = "") -> bool:
+    """更新已缓存签到任务的详情字段（sign_type / enc / location_name）"""
+    updates = {}
+    if sign_type:
+        updates["sign_type"] = sign_type
+        updates["sign_type_label"] = sign_type
+    if enc:
+        updates["enc"] = enc
+    if location_name:
+        updates["location_name"] = location_name
+    if not updates:
+        return False
+    return _update_cached_fields(course_id, class_id, active_id, updates)
+
+
+def _update_cached_fields(course_id: str, class_id: str, active_id: str,
+                          updates: dict) -> bool:
+    """通用：更新缓存条目的指定字段"""
     r = get_redis()
     if r is None:
-        return
+        return False
     key = _task_key(course_id, class_id, active_id)
     try:
         import json
         val = r.get(key)
         if val:
             data = json.loads(val)
-            data["location_name"] = location_name
+            data.update(updates)
             ttl = r.ttl(key)
             if ttl < 0:
                 ttl = 3600
             r.setex(key, ttl, json.dumps(data, ensure_ascii=False))
-            logger.info("更新缓存签到任务位置: key=%s location=%s", key, location_name)
+            logger.info("更新缓存签到任务: key=%s fields=%s", key, list(updates.keys()))
+            return True
     except Exception as e:
-        logger.warning("更新缓存签到任务位置失败: %s", e)
+        logger.warning("更新缓存签到任务失败: %s", e)
+    return False
 
 
 def delete_cached_tasks(course_id: str, class_id: str):

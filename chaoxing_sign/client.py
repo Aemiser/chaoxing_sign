@@ -376,6 +376,10 @@ class ChaoxingClient:
             if m:
                 task.active_id = m.group(1)
 
+        # 追踪需要更新到缓存的字段
+        cache_updates: dict = {}
+        orig_sign_type = task.sign_type.value
+
         # 检测是否为指定地点签到（二维码 + 位置均检测 #ifopenAddress）
         if task.sign_type in (SignType.QRCODE, SignType.LOCATION):
             soup = BeautifulSoup(html, "lxml")
@@ -386,11 +390,7 @@ class ChaoxingClient:
                 loc_el = soup.select_one("#locationText")
                 if loc_el and loc_el.get("value"):
                     task.location_name = loc_el.get("value")
-                    # 更新 Redis 缓存中的位置信息
-                    from .redis_client import update_cached_task_location
-                    update_cached_task_location(
-                        task.course_id, task.class_id, task.active_id, task.location_name
-                    )
+                    cache_updates["location_name"] = task.location_name
                 log.info("检测到指定地点签到: %s", task.location_name)
 
         # 二维码签到：从后续的 API 调用中提取 enc
@@ -403,8 +403,25 @@ class ChaoxingClient:
                     resp = self.session.get(detail_url, timeout=10)
                     data = safe_json_loads(resp.text)
                     task.enc = data.get("enc", "") or data.get("encStr", "")
+                    if task.enc:
+                        cache_updates["enc"] = task.enc
                 except Exception:
                     pass
+
+        # 如果 sign_type 变了（如 qrcode→qrcode_location），更新缓存
+        if task.sign_type.value != orig_sign_type:
+            cache_updates["sign_type"] = task.sign_type.value
+            cache_updates["sign_type_label"] = task.sign_type.value
+
+        # 批量写入 Redis 缓存
+        if cache_updates:
+            from .redis_client import update_cached_task_detail
+            update_cached_task_detail(
+                task.course_id, task.class_id, task.active_id,
+                sign_type=cache_updates.get("sign_type", ""),
+                enc=cache_updates.get("enc", ""),
+                location_name=cache_updates.get("location_name", ""),
+            )
 
         return task
 
@@ -457,6 +474,10 @@ class ChaoxingClient:
             if m:
                 task.active_id = m.group(1)
 
+        # 追踪需要更新到缓存的字段
+        cache_updates: dict = {}
+        orig_sign_type = task.sign_type.value
+
         if task.sign_type in (SignType.QRCODE, SignType.LOCATION):
             soup = BeautifulSoup(html, "lxml")
             el = soup.select_one("#ifopenAddress")
@@ -466,10 +487,7 @@ class ChaoxingClient:
                 loc_el = soup.select_one("#locationText")
                 if loc_el and loc_el.get("value"):
                     task.location_name = loc_el.get("value")
-                    from .redis_client import update_cached_task_location
-                    update_cached_task_location(
-                        task.course_id, task.class_id, task.active_id, task.location_name
-                    )
+                    cache_updates["location_name"] = task.location_name
                 log.info("检测到指定地点签到: %s", task.location_name)
 
         if task.sign_type == SignType.QRCODE:
@@ -480,8 +498,25 @@ class ChaoxingClient:
                     resp = s.get(detail_url, timeout=10)
                     data = safe_json_loads(resp.text)
                     task.enc = data.get("enc", "") or data.get("encStr", "")
+                    if task.enc:
+                        cache_updates["enc"] = task.enc
                 except Exception:
                     pass
+
+        # 如果 sign_type 变了（如 qrcode→qrcode_location），更新缓存
+        if task.sign_type.value != orig_sign_type:
+            cache_updates["sign_type"] = task.sign_type.value
+            cache_updates["sign_type_label"] = task.sign_type.value
+
+        # 批量写入 Redis 缓存
+        if cache_updates:
+            from .redis_client import update_cached_task_detail
+            update_cached_task_detail(
+                task.course_id, task.class_id, task.active_id,
+                sign_type=cache_updates.get("sign_type", ""),
+                enc=cache_updates.get("enc", ""),
+                location_name=cache_updates.get("location_name", ""),
+            )
 
         return task
 
