@@ -38,6 +38,7 @@ async def api_sign(
     latitude: str = Query(""),
     location_name: str = Query(""),
     use_trilateration: str = Query("1"),
+    friend_id: int = Query(0, description="代签好友的用户ID"),
     encrypted: str | None = Query(None),
 ):
     if encrypted:
@@ -53,11 +54,25 @@ async def api_sign(
         latitude = decrypted.get("latitude", latitude)
         location_name = decrypted.get("location_name", location_name)
         use_trilateration = decrypted.get("use_trilateration", use_trilateration)
+        friend_id = int(decrypted.get("friend_id", friend_id))
 
     if not active_id or not sign_type:
         raise HTTPException(400, "缺少签到参数")
 
     c = deps.get_client(token)
+
+    # 代签：使用好友的 session
+    log.info("签到请求: friend_id=%s uid=%s", friend_id, c.uid)
+    if friend_id > 0:
+        deps.require_db()
+        db: Session = db_module.get_db()
+        try:
+            friend_client = _get_proxy_client(db, friend_id)
+            if not friend_client:
+                raise HTTPException(400, "好友无可用会话")
+            c = friend_client
+        finally:
+            db.close()
 
     type_map = {
         "normal": SignType.NORMAL, "photo": SignType.PHOTO,
@@ -91,6 +106,12 @@ async def api_sign(
         kwargs["code"] = sign_code
     if st == SignType.GESTURE and gesture_code:
         kwargs["gesture"] = gesture_code
+
+    # 代签：提供 friend_id 时使用好友的 session 签到
+    friend_id = Query(0)
+    # HACK: fastapi Query() 不能在函数体中动态声明，这里从原始请求获取
+    # 实际上 friend_id 需要从请求参数中提取，重读函数签名...
+    # 让我们修改函数签名来支持 friend_id
 
     log.info("执行签到: uid=%s type=%s active_id=%s", c.uid, sign_type, active_id)
     ok, msg = c.sign(task, **kwargs)

@@ -946,6 +946,7 @@ const app = createApp({
                             class_id: self.currentTask ? self.currentClassId : '',
                             sign_type: 'gesture',
                             gesture_code: self.gestureCode,
+                            friend_id: fid,
                         });
                         if (data.ok) self.addLog(name, 'success');
                         else self.addLog(name, 'fail', data.message || '');
@@ -998,6 +999,7 @@ const app = createApp({
                             class_id: self.currentTask ? self.currentClassId : '',
                             sign_type: 'code',
                             sign_code: code,
+                            friend_id: fid,
                         });
                         if (data.ok) {
                             self.addLog(name, 'success');
@@ -1252,20 +1254,24 @@ const app = createApp({
                 use_trilateration: self.useTrilateration ? '1' : '0',
             };
 
+            // 为自己签到
             try {
-                var selfData = await self.api('POST', '/sign', signParams);
+                var selfParams = Object.assign({}, signParams);
+                var selfData = await self.api('POST', '/sign', selfParams);
                 var selfOk = selfData.ok;
                 var selfErr = selfOk ? '' : (selfData.message || '');
                 self.addLog(self.user.nickname || '自己', selfOk ? 'success' : 'fail', selfErr);
             } catch (e) { self.addLog('自己', 'fail'); }
 
+            // 好友代签
             if (self.selectedFriends.length > 0) {
                 for (var i = 0; i < self.selectedFriends.length; i++) {
                     var fid = self.selectedFriends[i];
                     var friend = self.friends.find(function(f) { return f.id === fid; });
                     var name = friend ? friend.nickname : ('好友#' + fid);
                     try {
-                        var data = await self.api('POST', '/sign', signParams);
+                        var fParams = Object.assign({}, signParams, { friend_id: fid });
+                        var data = await self.api('POST', '/sign', fParams);
                         var fOk = data.ok;
                         self.addLog(name, fOk ? 'success' : 'fail', fOk ? '' : (data.message || ''));
                     } catch (e) { self.addLog(name, 'fail'); }
