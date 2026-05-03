@@ -87,6 +87,7 @@ def cache_sign_task(task_item: dict, course_id: str, class_id: str) -> bool:
             "nameTwo": task_item.get("nameTwo", ""),
             "status": task_item.get("status", 1),
             "activeType": task_item.get("activeType", 2),
+            "location_name": task_item.get("location_name", ""),
         }, ensure_ascii=False)
         r.setex(key, ttl, value)
         logger.debug("缓存签到任务: key=%s ttl=%ds", key, ttl)
@@ -146,6 +147,29 @@ def _parse_ttl(name_two: str) -> int | None:
 def _now() -> int:
     import time
     return int(time.time())
+
+
+def update_cached_task_location(course_id: str, class_id: str, active_id: str, location_name: str):
+    """更新已缓存签到任务的指定位置名称"""
+    if not location_name:
+        return
+    r = get_redis()
+    if r is None:
+        return
+    key = _task_key(course_id, class_id, active_id)
+    try:
+        import json
+        val = r.get(key)
+        if val:
+            data = json.loads(val)
+            data["location_name"] = location_name
+            ttl = r.ttl(key)
+            if ttl < 0:
+                ttl = 3600
+            r.setex(key, ttl, json.dumps(data, ensure_ascii=False))
+            logger.info("更新缓存签到任务位置: key=%s location=%s", key, location_name)
+    except Exception as e:
+        logger.warning("更新缓存签到任务位置失败: %s", e)
 
 
 def delete_cached_tasks(course_id: str, class_id: str):

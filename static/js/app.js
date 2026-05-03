@@ -350,7 +350,7 @@ const app = createApp({
             self.user = { id: 0, supernova_account: '', nickname: '' };
             self.courses = [];
             self.friends = [];
-            ['cx_token', 'cx_jwt', 'cx_name', 'cx_user', 'cx_friends'].forEach(function(k) { localStorage.removeItem(k); });
+            ['cx_token', 'cx_jwt', 'cx_name', 'cx_user', 'cx_courses', 'cx_friends'].forEach(function(k) { localStorage.removeItem(k); });
             self.currentPage = 'login';
         },
 
@@ -369,11 +369,27 @@ const app = createApp({
 
         loadCourses: async function() {
             var self = this;
+
+            // 先从缓存恢复，保证秒显
+            var cached = localStorage.getItem('cx_courses');
+            if (cached) {
+                try { self.courses = JSON.parse(cached); } catch (e) {}
+            }
+
+            // 无缓存才请求 API
+            if (self.courses.length > 0) {
+                self.loadingCourses = false;
+                return;
+            }
+
             self.loadingCourses = true;
             try {
                 var data = await self.api('GET', '/courses', { source: 0, user_id: self.user.id || 0 });
                 self.courses = data.courses || [];
-            } catch (e) { self.courses = []; }
+                if (self.courses.length > 0) {
+                    localStorage.setItem('cx_courses', JSON.stringify(self.courses));
+                }
+            } catch (e) { self.courses = self.courses.length ? self.courses : []; }
             finally { self.loadingCourses = false; }
         },
 
@@ -385,6 +401,7 @@ const app = createApp({
             try {
                 var data = await self.api('GET', '/courses', { source: 1, user_id: self.user.id || 0 });
                 self.courses = data.courses || [];
+                localStorage.setItem('cx_courses', JSON.stringify(self.courses));
                 self.toast('课程同步完成，共 ' + self.courses.length + ' 门课程');
             } catch (e) {
                 self.toast('课程同步失败');

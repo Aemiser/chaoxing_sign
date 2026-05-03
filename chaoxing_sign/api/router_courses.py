@@ -225,7 +225,7 @@ async def api_tasks(course_id: str, class_id: str, token: str = Query(...),
                     "start_time": str(it.get("startTime", "")),
                     "end_time": "",
                     "course_name": "",
-                    "location_name": "",
+                    "location_name": it.get("location_name", ""),
                 })
             return {"ok": True, "tasks": task_dicts, "cached": True}
 

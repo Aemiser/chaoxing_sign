@@ -3,7 +3,6 @@ from __future__ import annotations
 import re
 import json
 from pathlib import Path
-from pprint import pprint
 
 import urllib3
 import requests
@@ -239,12 +238,11 @@ class ChaoxingClient:
                 "showNotStartedActive": "0",
             }, timeout=15)
             data = resp.json()
-            pprint(data)
         except Exception as e:
             log.error("获取活动列表失败: %s", e)
             return []
 
-        from .redis_client import cache_sign_task
+        from .redis_client import cache_sign_task, update_cached_task_location
 
         tasks: list[SignTask] = []
 
@@ -352,6 +350,11 @@ class ChaoxingClient:
                 loc_el = soup.select_one("#locationText")
                 if loc_el and loc_el.get("value"):
                     task.location_name = loc_el.get("value")
+                    # 更新 Redis 缓存中的位置信息
+                    from .redis_client import update_cached_task_location
+                    update_cached_task_location(
+                        task.course_id, task.class_id, task.active_id, task.location_name
+                    )
                 log.info("检测到指定地点签到: %s", task.location_name)
 
         # 二维码签到：从后续的 API 调用中提取 enc
