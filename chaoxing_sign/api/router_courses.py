@@ -79,7 +79,13 @@ async def api_courses(
     token: str = Query(...),
     source: int = Query(0, description="0=从数据库读取, 1=从超星API获取并更新数据库"),
     user_id: int = Query(0, description="用户ID，source=0时需要"),
+    encrypted: str | None = Query(None),
 ):
+    if encrypted:
+        decrypted = deps.decrypt_query_payload(encrypted) or {}
+        source = int(decrypted.get("source", source))
+        user_id = int(decrypted.get("user_id", user_id))
+
     deps.get_client(token)
 
     if source == 0:
@@ -186,7 +192,14 @@ def _display_type(t):
 
 @router.get("/tasks/{course_id}/{class_id}")
 async def api_tasks(course_id: str, class_id: str, token: str = Query(...),
-                    sync: int = Query(0, description="1=强制同步，跳过缓存直接请求超星 API")):
+                    sync: int = Query(0, description="1=强制同步，跳过缓存直接请求超星 API"),
+                    encrypted: str | None = Query(None)):
+    if encrypted:
+        decrypted = deps.decrypt_query_payload(encrypted) or {}
+        course_id = decrypted.get("course_id", course_id)
+        class_id = decrypted.get("class_id", class_id)
+        sync = int(decrypted.get("sync", sync))
+
     from ..redis_client import get_cached_tasks, delete_cached_tasks
 
     # sync=1：清除缓存，强制请求 API

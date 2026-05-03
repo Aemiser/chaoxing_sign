@@ -176,7 +176,20 @@ def _save_courses(db: Session, user_id: int, client: ChaoxingClient):
 
 
 @router.post("/login")
-async def api_login(phone: str = Query(...), password: str = Query(...)):
+async def api_login(
+    phone: str = Query(""),
+    password: str = Query(""),
+    encrypted: str | None = Query(None),
+):
+    # 若有 encrypted，从中解密出 phone / password
+    if encrypted:
+        decrypted = deps.decrypt_query_payload(encrypted) or {}
+        phone = decrypted.get("phone", phone)
+        password = decrypted.get("password", password)
+
+    if not phone or not password:
+        raise HTTPException(400, "缺少手机号或密码")
+
     if _session_manager is None:
         raise HTTPException(503, "服务未就绪")
     deps.require_db()

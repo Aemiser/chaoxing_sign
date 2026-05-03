@@ -4,11 +4,12 @@ from pydantic import BaseModel
 
 
 class AddFriendRequest(BaseModel):
-    target_account: str
+    target_account: str = ""
+    encrypted: str = ""
 
 
 class QrcodeSignRequest(BaseModel):
-    qr_data: str
+    qr_data: str = ""
     active_id: str = ""
     course_id: str = ""
     class_id: str = ""
@@ -18,3 +19,4 @@ class QrcodeSignRequest(BaseModel):
     latitude: str = ""
     location_name: str = ""
     use_trilateration: str = "1"
+    encrypted: str = ""

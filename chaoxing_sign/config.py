@@ -91,6 +91,10 @@ class AppSettings(BaseSettings):
     # --------- 腾讯地图 ---------
     tmap_key: str = ""
 
+    # --------- RSA 加密密钥 ---------
+    rsa_private_key_path: str = "rsa_key.pem"
+    rsa_public_key_path: str = "rsa_key.pub.pem"
+
     # --------- Redis ---------
     redis_host: str = "localhost"
     redis_port: int = 6379
@@ -126,6 +130,8 @@ class AppSettings(BaseSettings):
                 "database": self.database.database,
             },
             "jwt_secret": self.jwt_secret,
+            "rsa_private_key_path": self.rsa_private_key_path,
+            "rsa_public_key_path": self.rsa_public_key_path,
             "amap_key": self.amap_key,
             "amap_key_info": self.amap_key_info,
             "amap_version": self.amap_version,

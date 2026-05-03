@@ -50,9 +50,15 @@ async def api_add_friend(
 ):
     deps.require_db()
     deps.get_client(token)
+
+    # 支持 encrypted 字段解密
+    target_account = body.target_account.strip()
+    if body.encrypted:
+        decrypted = deps.decrypt_body_payload({"encrypted": body.encrypted}) or {}
+        target_account = decrypted.get("target_account", target_account).strip()
+
     db: Session = db_module.get_db()
     try:
-        target_account = body.target_account.strip()
         if not target_account:
             raise HTTPException(400, "请输入账号")
 

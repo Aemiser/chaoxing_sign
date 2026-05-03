@@ -11,6 +11,7 @@ const app = createApp({
             uid: '',
             name: '',
             user: { id: 0, supernova_account: '', nickname: '' },
+            publicKey: null,   // RSA 公钥（CryptoKey），用于加密敏感参数
 
             // 登录表单
             loginPhone: localStorage.getItem('cx_phone') || '',
@@ -133,18 +134,133 @@ const app = createApp({
             self.toastTimer = setTimeout(function() { self.toastMsg = ''; }, duration);
         },
 
-        // 通用 API
+        // 导入 RSA 公钥（SPKI PEM → CryptoKey）
+        importPublicKey: async function(pem) {
+            try {
+                var b64 = pem
+                    .replace('-----BEGIN PUBLIC KEY-----', '')
+                    .replace('-----END PUBLIC KEY-----', '')
+                    .replace(/\s/g, '');
+                var binaryDer = Uint8Array.from(atob(b64), function(c) { return c.charCodeAt(0); });
+                this.publicKey = await crypto.subtle.importKey(
+                    'spki',
+                    binaryDer,
+                    { name: 'RSA-OAEP', hash: 'SHA-256' },
+                    false,
+                    ['encrypt']
+                );
+            } catch (e) {
+                console.warn('导入公钥失败:', e);
+                this.publicKey = null;
+            }
+        },
+
+        // 混合加密：AES-GCM 加密数据 + RSA-OAEP 加密 AES 密钥
+        encryptPayload: async function(dataObj) {
+            if (!this.publicKey) return null;
+            if (!crypto || !crypto.subtle) return null;
+
+            try {
+                var plaintext = new TextEncoder().encode(JSON.stringify(dataObj));
+
+                // 1. 生成随机 AES-256-GCM 密钥
+                var aesKey = await crypto.subtle.generateKey(
+                    { name: 'AES-GCM', length: 256 },
+                    true,
+                    ['encrypt']
+                );
+
+                // 2. 生成随机 nonce (12 bytes)
+                var nonce = crypto.getRandomValues(new Uint8Array(12));
+
+                // 3. AES-GCM 加密 → ciphertext || tag (tag 在末尾 16 字节)
+                var ciphertextWithTag = new Uint8Array(
+                    await crypto.subtle.encrypt(
+                        { name: 'AES-GCM', iv: nonce },
+                        aesKey,
+                        plaintext
+                    )
+                );
+                var ciphertext = ciphertextWithTag.slice(0, -16);
+                var tag = ciphertextWithTag.slice(-16);
+
+                // 4. 导出原始 AES 密钥
+                var rawAesKey = new Uint8Array(
+                    await crypto.subtle.exportKey('raw', aesKey)
+                );
+
+                // 5. RSA-OAEP 加密 AES 密钥
+                var encryptedKey = new Uint8Array(
+                    await crypto.subtle.encrypt(
+                        { name: 'RSA-OAEP' },
+                        this.publicKey,
+                        rawAesKey
+                    )
+                );
+
+                // 6. 拼接: nonce(12) + encryptedKey(256) + tag(16) + ciphertext
+                var blob = new Uint8Array(nonce.length + encryptedKey.length + tag.length + ciphertext.length);
+                blob.set(nonce, 0);
+                blob.set(encryptedKey, nonce.length);
+                blob.set(tag, nonce.length + encryptedKey.length);
+                blob.set(ciphertext, nonce.length + encryptedKey.length + tag.length);
+
+                // 7. Base64 编码
+                var binary = '';
+                for (var i = 0; i < blob.length; i++) {
+                    binary += String.fromCharCode(blob[i]);
+                }
+                return btoa(binary);
+            } catch (e) {
+                console.warn('加密失败:', e);
+                return null;
+            }
+        },
+
+        // 通用 API（查询字符串方式）
         api: async function(method, path, params) {
             var self = this;
             params = params || {};
             if (self.token) params.token = self.token;
             var url = '/api' + path;
             var opts = { method: method };
-            // 始终把 params 放入 query string（后端统一用 Query() 获取）
-            var qs = Object.keys(params).map(function(k) {
-                return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
-            }).join('&');
-            if (qs) url += '?' + qs;
+
+            // 尝试加密敏感参数
+            if (self.publicKey && method !== 'GET') {
+                // 分离 token（明文传输）和其他敏感参数
+                var tokenVal = params.token;
+                var sensitiveParams = {};
+                var hasSensitive = false;
+                Object.keys(params).forEach(function(k) {
+                    if (k !== 'token') {
+                        sensitiveParams[k] = params[k];
+                        hasSensitive = true;
+                    }
+                });
+                if (hasSensitive) {
+                    var encrypted = await self.encryptPayload(sensitiveParams);
+                    if (encrypted) {
+                        var qsParts = [];
+                        if (tokenVal) qsParts.push('token=' + encodeURIComponent(tokenVal));
+                        qsParts.push('encrypted=' + encodeURIComponent(encrypted));
+                        url += '?' + qsParts.join('&');
+                    } else {
+                        // 加密失败，降级为明文
+                        var qs = Object.keys(params).map(function(k) {
+                            return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
+                        }).join('&');
+                        if (qs) url += '?' + qs;
+                    }
+                } else {
+                    if (tokenVal) url += '?token=' + encodeURIComponent(tokenVal);
+                }
+            } else {
+                var qs = Object.keys(params).map(function(k) {
+                    return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
+                }).join('&');
+                if (qs) url += '?' + qs;
+            }
+
             try {
                 var resp = await fetch(url, opts);
                 if (!resp.ok) {
@@ -160,7 +276,7 @@ const app = createApp({
             }
         },
 
-        // JWT 认证 API
+        // JWT 认证 API（JSON body）
         apiAuth: async function(method, path, body) {
             var self = this;
             var headers = { 'Content-Type': 'application/json' };
@@ -168,7 +284,19 @@ const app = createApp({
             var url = '/api' + path;
             if (self.token) url += (url.indexOf('?') !== -1 ? '&' : '?') + 'token=' + self.token;
             var opts = { method: method, headers: headers };
-            if (body && method !== 'GET') opts.body = JSON.stringify(body);
+            if (body && method !== 'GET') {
+                // 尝试加密 body
+                if (self.publicKey) {
+                    var encrypted = await self.encryptPayload(body);
+                    if (encrypted) {
+                        opts.body = JSON.stringify({ encrypted: encrypted });
+                    } else {
+                        opts.body = JSON.stringify(body);
+                    }
+                } else {
+                    opts.body = JSON.stringify(body);
+                }
+            }
             try {
                 var resp = await fetch(url, opts);
                 if (!resp.ok) {
@@ -1234,6 +1362,17 @@ const app = createApp({
                 self.showTrilateration = signCfg.show_trilateration;
             }
         } catch (e) {}
+
+        // 获取 RSA 公钥用于加密敏感参数
+        try {
+            var pkResp = await fetch('/api/public-key');
+            var pkData = await pkResp.json();
+            if (pkData.public_key) {
+                await self.importPublicKey(pkData.public_key);
+            }
+        } catch (e) {
+            console.warn('获取公钥失败，敏感参数将以明文传输:', e);
+        }
 
         var savedJwt = localStorage.getItem('cx_jwt');
         var savedUser = localStorage.getItem('cx_user');

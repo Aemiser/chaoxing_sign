@@ -35,6 +35,14 @@ async def api_public_config():
     }
 
 
+@router.get("/api/public-key")
+async def api_public_key():
+    """返回 RSA 公钥，供前端加密敏感参数使用"""
+    from .deps import get_public_key_pem
+
+    return {"public_key": get_public_key_pem()}
+
+
 @router.get("/health")
 async def health_check():
     sm = deps.session_manager

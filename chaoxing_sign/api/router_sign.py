@@ -27,10 +27,10 @@ default_location = cfg["location"]
 @router.post("/sign")
 async def api_sign(
     token: str = Query(...),
-    active_id: str = Query(...),
-    course_id: str = Query(...),
-    class_id: str = Query(...),
-    sign_type: str = Query(...),
+    active_id: str = Query(""),
+    course_id: str = Query(""),
+    class_id: str = Query(""),
+    sign_type: str = Query(""),
     enc: str = Query(""),
     sign_code: str = Query(""),
     gesture_code: str = Query(""),
@@ -38,7 +38,25 @@ async def api_sign(
     latitude: str = Query(""),
     location_name: str = Query(""),
     use_trilateration: str = Query("1"),
+    encrypted: str | None = Query(None),
 ):
+    if encrypted:
+        decrypted = deps.decrypt_query_payload(encrypted) or {}
+        active_id = decrypted.get("active_id", active_id)
+        course_id = decrypted.get("course_id", course_id)
+        class_id = decrypted.get("class_id", class_id)
+        sign_type = decrypted.get("sign_type", sign_type)
+        enc = decrypted.get("enc", enc)
+        sign_code = decrypted.get("sign_code", sign_code)
+        gesture_code = decrypted.get("gesture_code", gesture_code)
+        longitude = decrypted.get("longitude", longitude)
+        latitude = decrypted.get("latitude", latitude)
+        location_name = decrypted.get("location_name", location_name)
+        use_trilateration = decrypted.get("use_trilateration", use_trilateration)
+
+    if not active_id or not sign_type:
+        raise HTTPException(400, "缺少签到参数")
+
     c = deps.get_client(token)
 
     type_map = {
@@ -91,18 +109,38 @@ async def api_checkin_qrcode(
     deps.require_db()
     c = deps.get_client(token)
 
-    qr_data = body.qr_data
-    enc = extract_enc_from_qr(qr_data)
+    # 支持 encrypted 字段：解密后合并到 body 字段
+    if body.encrypted:
+        decrypted = deps.decrypt_body_payload({"encrypted": body.encrypted}) or {}
+        qr_data = decrypted.get("qr_data", body.qr_data)
+        active_id = decrypted.get("active_id", body.active_id or "")
+        course_id = decrypted.get("course_id", body.course_id or "")
+        class_id = decrypted.get("class_id", body.class_id or "")
+        sign_type = decrypted.get("sign_type", body.sign_type)
+        longitude = decrypted.get("longitude", body.longitude)
+        latitude = decrypted.get("latitude", body.latitude)
+        location_name = decrypted.get("location_name", body.location_name)
+        use_trilateration = decrypted.get("use_trilateration", body.use_trilateration)
+        proxy_friend_ids = decrypted.get("proxy_friend_ids", proxy_friend_ids)
+    else:
+        qr_data = body.qr_data
+        active_id = body.active_id or ""
+        course_id = body.course_id or ""
+        class_id = body.class_id or ""
+        sign_type = body.sign_type
+        longitude = body.longitude
+        latitude = body.latitude
+        location_name = body.location_name
+        use_trilateration = body.use_trilateration
+        proxy_friend_ids = proxy_friend_ids
 
-    active_id = body.active_id or ""
-    course_id = body.course_id or ""
-    class_id = body.class_id or ""
+    enc = extract_enc_from_qr(qr_data)
 
     if not enc:
         log.error("无法解析二维码内容，缺少 enc 参数: qr_data=%s", qr_data[:100])
         raise HTTPException(400, "无法解析二维码内容，缺少 enc 参数")
 
-    st = SignType.QRCODE_LOCATION if body.sign_type == "qrcode_location" else SignType.QRCODE
+    st = SignType.QRCODE_LOCATION if sign_type == "qrcode_location" else SignType.QRCODE
 
     task = SignTask(
         active_id=active_id, name="", course_name="",
@@ -119,10 +157,10 @@ async def api_checkin_qrcode(
 
     sign_kwargs = {"enc": enc}
     if task.sign_type == SignType.QRCODE_LOCATION:
-        sign_kwargs["longitude"] = body.longitude or default_location["longitude"]
-        sign_kwargs["latitude"] = body.latitude or default_location["latitude"]
-        sign_kwargs["location_name"] = body.location_name or default_location["name"]
-        sign_kwargs["use_trilateration"] = body.use_trilateration
+        sign_kwargs["longitude"] = longitude or default_location["longitude"]
+        sign_kwargs["latitude"] = latitude or default_location["latitude"]
+        sign_kwargs["location_name"] = location_name or default_location["name"]
+        sign_kwargs["use_trilateration"] = use_trilateration
 
     log.info("扫码签到: user_id=%d uid=%s enc=%s sign_type=%s", user_id, c.uid, enc, task.sign_type.value)
     self_ok, self_msg = c.sign(task, **sign_kwargs)
@@ -130,15 +168,15 @@ async def api_checkin_qrcode(
     results["self_msg"] = self_msg
     log.info("本人签到结果: %s msg=%s", results["self"], self_msg)
 
-    if body.proxy_friend_ids:
-        log.info("开始代签: user_id=%d friend_ids=%s", user_id, body.proxy_friend_ids)
+    if proxy_friend_ids:
+        log.info("开始代签: user_id=%d friend_ids=%s", user_id, proxy_friend_ids)
         db: Session = db_module.get_db()
         try:
             # 获取操作人账户信息
             action_user = db.query(User).filter(User.id == user_id).first()
             actionuser_name = action_user.supernova_account if action_user else str(user_id)
 
-            for fid in body.proxy_friend_ids:
+            for fid in proxy_friend_ids:
                 friendship = (
                     db.query(Friendship)
                     .filter(Friendship.user_id == user_id, Friendship.friend_id == fid)
@@ -174,7 +212,7 @@ async def api_checkin_qrcode(
                     user_id=user_id, target_uid=friend.supernova_account,
                     active_id=task.active_id, enc=enc, result=proxy_result,
                     actionuser=actionuser_name,
-                    friendids=",".join(str(x) for x in body.proxy_friend_ids),
+                    friendids=",".join(str(x) for x in proxy_friend_ids),
                 ))
                 db.commit()
 

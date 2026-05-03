@@ -7,5 +7,9 @@ build/
 .env
 session.json
 config.json
+rsa_key.pem
+rsa_key.pub.pem
+test_rsa_key.pem
+test_rsa_key.pub.pem
 .idea/
 static/images/
