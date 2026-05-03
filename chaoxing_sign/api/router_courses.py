@@ -68,8 +68,11 @@ def _query_course_active(cookies: dict, course) -> tuple:
         active.append({
             "active_id": active_id, "name": name, "sign_type": st_raw,
             "sign_type_label": st_raw, "status": "active",
+            "signed": False,
             "start_time": str(item.get("startTime", "")),
             "end_time": str(item.get("endTime", "")),
+            "course_name": course.name,
+            "location_name": "",
         })
     return (course, active)
 

@@ -395,6 +395,14 @@ const app = createApp({
             this.currentCourseId = course.course_id;
             this.currentClassId = course.class_id;
             this.currentCourseName = course.name;
+            // 如果有预加载的任务数据（来自 active-courses），立即填充，秒开任务列表
+            if (course.tasks && course.tasks.length > 0) {
+                this.activeTasks = course.tasks.filter(function(t) { return t.status === 'active'; });
+                this.endedTasks = course.tasks.filter(function(t) { return t.status !== 'active'; });
+            } else {
+                this.activeTasks = [];
+                this.endedTasks = [];
+            }
             this.currentPage = 'tasks';
         },
 
@@ -407,8 +415,11 @@ const app = createApp({
                 self.activeTasks = tasks.filter(function(t) { return t.status === 'active'; });
                 self.endedTasks = tasks.filter(function(t) { return t.status !== 'active'; });
             } catch (e) {
-                self.activeTasks = [];
-                self.endedTasks = [];
+                // 已有预加载数据时忽略刷新失败
+                if (!self.activeTasks.length && !self.endedTasks.length) {
+                    self.activeTasks = [];
+                    self.endedTasks = [];
+                }
             } finally { self.loadingTasks = false; }
         },
 
