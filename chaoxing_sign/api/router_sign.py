@@ -86,6 +86,7 @@ async def api_sign(
         kwargs["longitude"] = longitude or default_location["longitude"]
         kwargs["latitude"] = latitude or default_location["latitude"]
         kwargs["location_name"] = location_name or default_location["name"]
+        kwargs["use_trilateration"] = use_trilateration
     if st == SignType.CODE and sign_code:
         kwargs["code"] = sign_code
     if st == SignType.GESTURE and gesture_code:
@@ -121,7 +122,7 @@ async def api_checkin_qrcode(
         latitude = decrypted.get("latitude", body.latitude)
         location_name = decrypted.get("location_name", body.location_name)
         use_trilateration = decrypted.get("use_trilateration", body.use_trilateration)
-        proxy_friend_ids = decrypted.get("proxy_friend_ids", proxy_friend_ids)
+        proxy_friend_ids = decrypted.get("proxy_friend_ids", body.proxy_friend_ids)
     else:
         qr_data = body.qr_data
         active_id = body.active_id or ""
@@ -132,7 +133,7 @@ async def api_checkin_qrcode(
         latitude = body.latitude
         location_name = body.location_name
         use_trilateration = body.use_trilateration
-        proxy_friend_ids = proxy_friend_ids
+        proxy_friend_ids = body.proxy_friend_ids
 
     enc = extract_enc_from_qr(qr_data)
 

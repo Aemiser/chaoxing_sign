@@ -10,7 +10,7 @@ from bs4 import BeautifulSoup
 from .constants import PRESIGN_URL, STUSIGN_URL, EARTH_RADIUS
 from ..types import SignTask, SignType
 from ..utils import safe_json_loads, reverse_geocode_amap, extract_enc_from_qr
-from ..trilateration import solve_gn
+from ..trilateration import solve_gn, _haversine
 from ..geo.cache import load_location_cache, save_location_cache
 from ..logging_config import get_logger
 
@@ -18,6 +18,23 @@ if TYPE_CHECKING:
     from ..client import ChaoxingClient
 
 log = get_logger(__name__)
+
+
+def _apply_location_offset(lat: float, lon: float) -> tuple[float, float]:
+    """应用配置中的坐标偏移修正（WGS-84 → Chaoxing 坐标系）"""
+    from ..config import config as cfg
+
+    offset_e = cfg.get("location_offset", {}).get("east", 0.0)
+    offset_n = cfg.get("location_offset", {}).get("north", 0.0)
+
+    log.info(f"坐标偏移修正：东 {offset_e} 米，北 {offset_n} 米")
+    if offset_e == 0.0 and offset_n == 0.0:
+        return lat, lon
+
+    cos_lat = math.cos(math.radians(lat))
+    new_lat = lat + math.degrees(offset_n / EARTH_RADIUS)
+    new_lon = lon + math.degrees(offset_e / (EARTH_RADIUS * cos_lat))
+    return new_lat, new_lon
 
 PROBE_POINTS = [
     ("哈尔滨",  45.75, 126.63),
@@ -27,7 +44,7 @@ PROBE_POINTS = [
     ("上海",    31.23, 121.47),
 ]
 
-MAX_GRADIENT_ROUNDS = 10
+MAX_GRADIENT_ROUNDS = 25
 
 
 class SignExecutor:
@@ -114,6 +131,7 @@ class SignExecutor:
 
         lng = float(kwargs.get("longitude", task.location_longitude or "116.404"))
         lat = float(kwargs.get("latitude", task.location_latitude or "39.915"))
+        lat, lng = _apply_location_offset(lat, lng)
         location_name = kwargs.get("location_name", task.location_name or "")
 
         try:
@@ -144,10 +162,13 @@ class SignExecutor:
 
         lng = kwargs.get("longitude", task.location_longitude or "116.404")
         lat = kwargs.get("latitude", task.location_latitude or "39.915")
+        log.info("提交位置：%s, %s" % (lng, lat))
+        lat, lng = _apply_location_offset(float(lat), float(lng))
+        log.info("提交位置：%s, %s" % (lng, lat))
         params = self._client._base_params(task)
-        params["latitude"] = lat
-        params["longitude"] = lng
-        params["address"] = reverse_geocode_amap(float(lat), float(lng)).get("display_name", "")
+        params["latitude"] = str(lat)
+        params["longitude"] = str(lng)
+        params["address"] = reverse_geocode_amap(lat, lng).get("display_name", "")
         return self._client._do_sign_get(task, params)
 
     def _check_location_type(self, task: SignTask) -> str:
@@ -180,6 +201,8 @@ class SignExecutor:
         Returns ("success", None), ("distance", meters), or ("error", None)
         """
         from ..utils.captcha import solve_captcha
+        # 应用坐标偏移修正
+        lat, lon = _apply_location_offset(lat, lon)
         params = self._client._base_params(task)
         params["latitude"] = str(lat)
         params["longitude"] = str(lon)
@@ -218,6 +241,7 @@ class SignExecutor:
         if cached is not None:
             lat, lon = cached
             log.info("命中定位缓存: (%.6f, %.6f)", lat, lon)
+            lat, lon = _apply_location_offset(lat, lon)
             params = self._client._base_params(task)
             params["latitude"] = str(lat)
             params["longitude"] = str(lon)
@@ -283,56 +307,83 @@ class SignExecutor:
         log.info("GN 初始解: (%.6f, %.6f)", target_lat, target_lon)
 
         # 5. 有限差分梯度下降
-        for round_num in range(MAX_GRADIENT_ROUNDS):
-            status, val = self._probe(task, target_lat, target_lon)
-            if status == "success":
-                cache[task.active_id] = (target_lat, target_lon)
-                save_location_cache(cache)
+        def _gradient_descent(lat: float, lon: float) -> tuple[bool, float, float]:
+            for round_num in range(MAX_GRADIENT_ROUNDS):
+                status, val = self._probe(task, lat, lon)
+                if status == "success":
+                    cache[task.active_id] = (lat, lon)
+                    save_location_cache(cache)
+                    return (True, lat, lon)
+                if status != "distance":
+                    return (False, lat, lon)
+
+                d_center = val
+
+                # 较大的探测步长以克服 API 距离舍入误差
+                delta_m = max(150.0, min(600.0, d_center * 0.35))
+                delta_deg = delta_m / EARTH_RADIUS
+                cos_tlat = math.cos(math.radians(lat))
+
+                e_lat, e_lon = lat, lon + math.degrees(delta_deg / cos_tlat)
+                status, val = self._probe(task, e_lat, e_lon)
+                if status == "success":
+                    cache[task.active_id] = (lat, lon)
+                    save_location_cache(cache)
+                    return (True, lat, lon)
+                d_east = val if status == "distance" else d_center
+
+                n_lat, n_lon = lat + math.degrees(delta_deg), lon
+                status, val = self._probe(task, n_lat, n_lon)
+                if status == "success":
+                    cache[task.active_id] = (lat, lon)
+                    save_location_cache(cache)
+                    return (True, lat, lon)
+                d_north = val if status == "distance" else d_center
+
+                grad_e = (d_center - d_east) / delta_m
+                grad_n = (d_center - d_north) / delta_m
+
+                grad_mag2 = grad_e * grad_e + grad_n * grad_n
+                if grad_mag2 < 1e-15:
+                    log.warning("梯度为零，无法继续")
+                    return (False, lat, lon)
+
+                scale = d_center / grad_mag2
+                move_e = scale * grad_e
+                move_n = scale * grad_n
+
+                orig_lat = lat
+                lat += math.degrees(move_n / EARTH_RADIUS)
+                lon += math.degrees(move_e / (EARTH_RADIUS * math.cos(math.radians(orig_lat))))
+
+                log.info("第 %d 轮: dist=%.0fm Δe=%.0fm Δn=%.0fm → (%.6f, %.6f)",
+                         round_num + 1, d_center, move_e, move_n, lat, lon)
+
+            return (False, lat, lon)
+
+        ok, final_lat, final_lon = _gradient_descent(target_lat, target_lon)
+        if ok:
+            return (True, "签到成功")
+
+        # 6. 主初始解未收敛 → 尝试备选初始猜测
+        log.info("主初始解未收敛，尝试备选初始点...")
+        alt_guesses = []
+        for (la1, lo1, d1), (la2, lo2, d2), (la3, lo3, d3) in combinations(distances, 3):
+            r = solve_three(la1, lo1, d1, la2, lo2, d2, la3, lo3, d3)
+            if r is not None and r not in [g for g in alt_guesses]:
+                alt_guesses.append(r)
+            if len(alt_guesses) >= 5:
+                break
+
+        for alt_lat, alt_lon in alt_guesses:
+            # 排除已尝试过的主解（1km 内视为重复）
+            d_between = _haversine(alt_lat, alt_lon, final_lat, final_lon)
+            if d_between < 1000:
+                continue
+            log.info("尝试备选初始点: (%.6f, %.6f)", alt_lat, alt_lon)
+            ok, alt_final_lat, alt_final_lon = _gradient_descent(alt_lat, alt_lon)
+            if ok:
                 return (True, "签到成功")
-            if status != "distance":
-                log.error("中心点探测失败")
-                return (False, "中心点探测失败，服务器返回异常")
 
-            d_center = val
-
-            delta_m = max(50.0, min(200.0, d_center * 0.1))
-            delta_deg = delta_m / EARTH_RADIUS
-            cos_tlat = math.cos(math.radians(target_lat))
-
-            e_lat, e_lon = target_lat, target_lon + math.degrees(delta_deg / cos_tlat)
-            status, val = self._probe(task, e_lat, e_lon)
-            if status == "success":
-                cache[task.active_id] = (target_lat, target_lon)
-                save_location_cache(cache)
-                return (True, "签到成功")
-            d_east = val if status == "distance" else d_center
-
-            n_lat, n_lon = target_lat + math.degrees(delta_deg), target_lon
-            status, val = self._probe(task, n_lat, n_lon)
-            if status == "success":
-                cache[task.active_id] = (target_lat, target_lon)
-                save_location_cache(cache)
-                return (True, "签到成功")
-            d_north = val if status == "distance" else d_center
-
-            grad_e = (d_center - d_east) / delta_m
-            grad_n = (d_center - d_north) / delta_m
-
-            grad_mag2 = grad_e * grad_e + grad_n * grad_n
-            if grad_mag2 < 1e-15:
-                log.warning("梯度为零，无法继续")
-                return (False, "梯度为零，无法继续定位")
-
-            scale = d_center / grad_mag2
-            move_e = scale * grad_e
-            move_n = scale * grad_n
-
-            orig_lat = target_lat
-            target_lat += math.degrees(move_n / EARTH_RADIUS)
-            target_lon += math.degrees(move_e / (EARTH_RADIUS * math.cos(math.radians(orig_lat))))
-
-            log.info("第 %d 轮: dist=%.0fm Δe=%.0fm Δn=%.0fm → (%.6f, %.6f)",
-                     round_num + 1, d_center, move_e, move_n, target_lat, target_lon)
-
-        log.error("超过最大轮次 %d，签到失败", MAX_GRADIENT_ROUNDS)
-        return (False, f"超过最大迭代轮次（{MAX_GRADIENT_ROUNDS}轮），无法收敛到目标位置")
+        log.error("所有初始解均未收敛，签到失败")
+        return (False, f"无法收敛到目标位置（已尝试{len(alt_guesses)+1}个初始点）")

@@ -91,6 +91,13 @@ class AppSettings(BaseSettings):
     # --------- 腾讯地图 ---------
     tmap_key: str = ""
 
+    # --------- 坐标偏移修正 ---------
+    # Chaoxing 坐标系与 WGS-84 存在系统性偏移，在此修正
+    # east:  向东修正距离（米），正值表示向东补正
+    # north: 向北修正距离（米），正值表示向北补正
+    CHAOXING_LOCATION_OFFSET_EAST: float = 0.0
+    CHAOXING_LOCATION_OFFSET_NORTH: float = 0.0
+
     # --------- RSA 加密密钥 ---------
     rsa_private_key_path: str = "rsa_key.pem"
     rsa_public_key_path: str = "rsa_key.pub.pem"
@@ -144,6 +151,10 @@ class AppSettings(BaseSettings):
             },
             "sign": {
                 "show_trilateration": self.sign__show_trilateration,
+            },
+            "location_offset": {
+                "east": self.CHAOXING_LOCATION_OFFSET_EAST,
+                "north": self.CHAOXING_LOCATION_OFFSET_NORTH,
             },
             "log": {
                 "level": self.log.level,
