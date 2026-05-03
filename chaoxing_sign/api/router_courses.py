@@ -9,6 +9,7 @@ from fastapi import APIRouter, Query
 from sqlalchemy.orm import Session
 
 from .. import SignType
+from ..redis_client import delete_cached_tasks
 from ..types import Course
 from ..models import CourseRecord
 from ..logging_config import get_logger
@@ -70,6 +71,9 @@ def _query_course_active(cookies: dict, course) -> tuple:
                     log.info("检测到指定地点签到: %s → %s", name, active_id)
             except Exception:
                 pass
+
+        # 清空指定课程的缓存
+        delete_cached_tasks(course.course_id, course.class_id)
 
         # 写入 Redis 缓存
         cache_sign_task(item, course.course_id, course.class_id)

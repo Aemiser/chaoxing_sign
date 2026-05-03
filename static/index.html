@@ -350,6 +350,17 @@
                     <span class="material-symbols-outlined" style="font-size:40px;display:block;margin-bottom:8px;color:var(--m3-outline)">person_off</span>
                     <p>暂无好友，请先在「我的」页面添加好友</p>
                 </div>
+                <!-- 自己（本人） -->
+                <div class="scan-friend-item" :class="{checked: selectedFriends.includes(0)}"
+                     @click="toggleFriend(0)">
+                    <div class="sfi-check" :class="{active: selectedFriends.includes(0)}">
+                        <span v-if="selectedFriends.includes(0)" class="material-symbols-outlined" style="font-size:16px">check</span>
+                    </div>
+                    <div class="sfi-avatar">
+                        <img v-if="user.avatar" :src="user.avatar" class="avatar-img" @error="user.avatar=''">
+                        <span v-else>{{ user.nickname ? user.nickname[0] : '我' }}</span>
+                    </div>
+                </div>
                 <div v-for="f in friends" :key="f.id" class="scan-friend-item"
                      :class="{checked: selectedFriends.includes(f.id)}"
                      @click="toggleFriend(f.id)">

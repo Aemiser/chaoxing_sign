@@ -144,6 +144,7 @@ async def api_checkin_qrcode(
         location_name = decrypted.get("location_name", body.location_name)
         use_trilateration = decrypted.get("use_trilateration", body.use_trilateration)
         proxy_friend_ids = decrypted.get("proxy_friend_ids", body.proxy_friend_ids)
+        body.sign_self = decrypted.get("sign_self", body.sign_self)
     else:
         qr_data = body.qr_data
         active_id = body.active_id or ""
@@ -184,11 +185,17 @@ async def api_checkin_qrcode(
         sign_kwargs["location_name"] = location_name or default_location["name"]
         sign_kwargs["use_trilateration"] = use_trilateration
 
-    log.info("扫码签到: user_id=%d uid=%s enc=%s sign_type=%s", user_id, c.uid, enc, task.sign_type.value)
-    self_ok, self_msg = c.sign(task, **sign_kwargs)
-    results["self"] = "success" if self_ok else "failed"
-    results["self_msg"] = self_msg
-    log.info("本人签到结果: %s msg=%s", results["self"], self_msg)
+    log.info("扫码签到: user_id=%d uid=%s enc=%s sign_type=%s sign_self=%s",
+             user_id, c.uid, enc, task.sign_type.value, body.sign_self)
+    # 仅当勾选了"自己"时才签到本人
+    if body.sign_self:
+        self_ok, self_msg = c.sign(task, **sign_kwargs)
+        results["self"] = "success" if self_ok else "failed"
+        results["self_msg"] = self_msg
+        log.info("本人签到结果: %s msg=%s", results["self"], self_msg)
+    else:
+        results["self"] = "skipped"
+        log.info("跳过本人签到")
 
     if proxy_friend_ids:
         log.info("开始代签: user_id=%d friend_ids=%s", user_id, proxy_friend_ids)

@@ -543,36 +543,30 @@ const app = createApp({
             if (self.signing) return;
             self.scanLogs = [];
             self.signing = true;
-            self.addLog('系统', 'info', '普通签到代签');
+            self.addLog('系统', 'info', '普通签到');
 
-            try {
-                var selfData = await self.api('POST', '/sign', {
-                    active_id: self.currentTask ? self.currentTask.active_id : '',
-                    course_id: self.currentTask ? self.currentCourseId : '',
-                    class_id: self.currentTask ? self.currentClassId : '',
-                    sign_type: 'normal',
-                });
-                if (selfData.ok) self.addLog(self.user.nickname || '自己', 'success');
-                else self.addLog(self.user.nickname || '自己', 'fail', selfData.message || '');
-            } catch (e) { self.addLog('自己', 'fail'); }
+            if (self.selectedFriends.length === 0) {
+                self.toast('请勾选签到对象');
+                self.signing = false;
+                return;
+            }
 
-            if (self.selectedFriends.length > 0) {
-                for (var i = 0; i < self.selectedFriends.length; i++) {
-                    var fid = self.selectedFriends[i];
-                    var friend = self.friends.find(function(f) { return f.id === fid; });
-                    var name = friend ? friend.nickname : ('好友#' + fid);
-                    try {
-                        var data = await self.api('POST', '/sign', {
-                            active_id: self.currentTask ? self.currentTask.active_id : '',
-                            course_id: self.currentTask ? self.currentCourseId : '',
-                            class_id: self.currentTask ? self.currentClassId : '',
-                            friend_id: fid,
-                            sign_type: 'normal',
-                        });
-                        if (data.ok) self.addLog(name, 'success');
-                        else self.addLog(name, 'fail', data.message || '');
-                    } catch (e) { self.addLog(name, 'fail'); }
-                }
+            for (var i = 0; i < self.selectedFriends.length; i++) {
+                var fid = self.selectedFriends[i];
+                var isSelf = (fid === 0);
+                var friend = isSelf ? null : self.friends.find(function(f) { return f.id === fid; });
+                var name = isSelf ? (self.user.nickname || '自己') : (friend ? friend.nickname : ('好友#' + fid));
+                try {
+                    var data = await self.api('POST', '/sign', {
+                        active_id: self.currentTask ? self.currentTask.active_id : '',
+                        course_id: self.currentTask ? self.currentCourseId : '',
+                        class_id: self.currentTask ? self.currentClassId : '',
+                        friend_id: isSelf ? 0 : fid,
+                        sign_type: 'normal',
+                    });
+                    if (data.ok) self.addLog(name, 'success');
+                    else self.addLog(name, 'fail', data.message || '');
+                } catch (e) { self.addLog(name, 'fail'); }
             }
             self.signing = false;
             self.addLog('系统', 'info', '签到完成');
@@ -585,36 +579,30 @@ const app = createApp({
             if (self.signing) return;
             self.scanLogs = [];
             self.signing = true;
-            self.addLog('系统', 'info', '拍照签到代签');
+            self.addLog('系统', 'info', '拍照签到');
 
-            try {
-                var selfData = await self.api('POST', '/sign', {
-                    active_id: self.currentTask ? self.currentTask.active_id : '',
-                    course_id: self.currentTask ? self.currentCourseId : '',
-                    class_id: self.currentTask ? self.currentClassId : '',
-                    sign_type: 'photo',
-                });
-                if (selfData.ok) self.addLog(self.user.nickname || '自己', 'success');
-                else self.addLog(self.user.nickname || '自己', 'fail', selfData.message || '');
-            } catch (e) { self.addLog('自己', 'fail'); }
+            if (self.selectedFriends.length === 0) {
+                self.toast('请勾选签到对象');
+                self.signing = false;
+                return;
+            }
 
-            if (self.selectedFriends.length > 0) {
-                for (var i = 0; i < self.selectedFriends.length; i++) {
-                    var fid = self.selectedFriends[i];
-                    var friend = self.friends.find(function(f) { return f.id === fid; });
-                    var name = friend ? friend.nickname : ('好友#' + fid);
-                    try {
-                        var data = await self.api('POST', '/sign', {
-                            active_id: self.currentTask ? self.currentTask.active_id : '',
-                            course_id: self.currentTask ? self.currentCourseId : '',
-                            class_id: self.currentTask ? self.currentClassId : '',
-                            friend_id: fid,
-                            sign_type: 'photo',
-                        });
-                        if (data.ok) self.addLog(name, 'success');
-                        else self.addLog(name, 'fail', data.message || '');
-                    } catch (e) { self.addLog(name, 'fail'); }
-                }
+            for (var i = 0; i < self.selectedFriends.length; i++) {
+                var fid = self.selectedFriends[i];
+                var isSelf = (fid === 0);
+                var friend = isSelf ? null : self.friends.find(function(f) { return f.id === fid; });
+                var name = isSelf ? (self.user.nickname || '自己') : (friend ? friend.nickname : ('好友#' + fid));
+                try {
+                    var data = await self.api('POST', '/sign', {
+                        active_id: self.currentTask ? self.currentTask.active_id : '',
+                        course_id: self.currentTask ? self.currentCourseId : '',
+                        class_id: self.currentTask ? self.currentClassId : '',
+                        friend_id: isSelf ? 0 : fid,
+                        sign_type: 'photo',
+                    });
+                    if (data.ok) self.addLog(name, 'success');
+                    else self.addLog(name, 'fail', data.message || '');
+                } catch (e) { self.addLog(name, 'fail'); }
             }
             self.signing = false;
             self.addLog('系统', 'info', '签到完成');
@@ -749,36 +737,32 @@ const app = createApp({
             var enc = m ? m[1] : qrData;
 
             if (self.signing) return;
+            if (self.selectedFriends.length === 0) {
+                self.toast('请勾选签到对象');
+                return;
+            }
             self.signing = true;
 
-            // 为自己签到
+            var signSelf = self.selectedFriends.includes(0);
+            var friendIds = self.selectedFriends.filter(function(id) { return id !== 0; });
+
             try {
-                var selfData = await self.apiAuth('POST', '/checkin/qrcode', {
+                var data = await self.apiAuth('POST', '/checkin/qrcode', {
                     qr_data: qrData,
                     active_id: self.currentTask ? self.currentTask.active_id : '',
                     course_id: self.currentTask ? self.currentCourseId : '',
                     class_id: self.currentTask ? self.currentClassId : '',
-                    proxy_friend_ids: [],
+                    sign_self: signSelf,
+                    proxy_friend_ids: friendIds,
                 });
-                var selfResult = (selfData.results && selfData.results.self) || 'failed';
-                var selfErrMsg = selfResult === 'failed' ? (selfData.results && selfData.results.self_msg) || '' : '';
-                self.addLog(self.user.nickname || '自己', selfResult, selfErrMsg);
-            } catch (e) {
-                self.addLog('自己', 'fail');
-            }
 
-            // 为勾选的好友代签
-            if (self.selectedFriends.length > 0) {
-                try {
-                    var data = await self.apiAuth('POST', '/checkin/qrcode', {
-                        qr_data: qrData,
-                        active_id: self.currentTask ? self.currentTask.active_id : '',
-                        course_id: self.currentTask ? self.currentCourseId : '',
-                        class_id: self.currentTask ? self.currentClassId : '',
-                        proxy_friend_ids: self.selectedFriends,
-                    });
+                var selfResult = (data.results && data.results.self) || 'failed';
+                if (selfResult !== 'skipped') {
+                    var selfErrMsg = selfResult === 'failed' ? (data.results && data.results.self_msg) || '' : '';
+                    self.addLog(self.user.nickname || '自己', selfResult, selfErrMsg);
+                }
 
-                    var proxyResults = (data.results && data.results.proxy) || [];
+                var proxyResults = (data.results && data.results.proxy) || [];
                     proxyResults.forEach(function(p) {
                         var name = p.nickname || p.supernova_account || ('好友#' + p.friend_id);
                         var pResult = p.result === 'success' ? 'success' : 'fail';
@@ -788,7 +772,6 @@ const app = createApp({
                 } catch (e) {
                     self.addLog('代签', 'fail', '请求失败');
                 }
-            }
 
             self.signing = false;
             self.addLog('系统', 'info', '签到完成');
@@ -921,37 +904,29 @@ const app = createApp({
             self.signing = true;
             self.addLog('系统', 'info', '手势签到 ' + self.gestureCode);
 
-            try {
-                var selfData = await self.api('POST', '/sign', {
-                    active_id: self.currentTask ? self.currentTask.active_id : '',
-                    course_id: self.currentTask ? self.currentCourseId : '',
-                    class_id: self.currentTask ? self.currentClassId : '',
-                    sign_type: 'gesture',
-                    gesture_code: self.gestureCode,
-                });
-                if (selfData.ok) self.addLog(self.user.nickname || '自己', 'success');
-                else self.addLog(self.user.nickname || '自己', 'fail', selfData.message || '');
-            } catch (e) { self.addLog('自己', 'fail'); }
+            if (self.selectedFriends.length === 0) {
+                self.toast('请勾选签到对象');
+                self.signing = false;
+                return;
+            }
 
-            // 好友代签
-            if (self.selectedFriends.length > 0) {
-                for (var i = 0; i < self.selectedFriends.length; i++) {
-                    var fid = self.selectedFriends[i];
-                    var friend = self.friends.find(function(f) { return f.id === fid; });
-                    var name = friend ? friend.nickname : ('好友#' + fid);
-                    try {
-                        var data = await self.api('POST', '/sign', {
-                            active_id: self.currentTask ? self.currentTask.active_id : '',
-                            course_id: self.currentTask ? self.currentCourseId : '',
-                            class_id: self.currentTask ? self.currentClassId : '',
-                            sign_type: 'gesture',
-                            gesture_code: self.gestureCode,
-                            friend_id: fid,
-                        });
-                        if (data.ok) self.addLog(name, 'success');
-                        else self.addLog(name, 'fail', data.message || '');
-                    } catch (e) { self.addLog(name, 'fail'); }
-                }
+            for (var i = 0; i < self.selectedFriends.length; i++) {
+                var fid = self.selectedFriends[i];
+                var isSelf = (fid === 0);
+                var friend = isSelf ? null : self.friends.find(function(f) { return f.id === fid; });
+                var name = isSelf ? (self.user.nickname || '自己') : (friend ? friend.nickname : ('好友#' + fid));
+                try {
+                    var data = await self.api('POST', '/sign', {
+                        active_id: self.currentTask ? self.currentTask.active_id : '',
+                        course_id: self.currentTask ? self.currentCourseId : '',
+                        class_id: self.currentTask ? self.currentClassId : '',
+                        sign_type: 'gesture',
+                        gesture_code: self.gestureCode,
+                        friend_id: isSelf ? 0 : fid,
+                    });
+                    if (data.ok) self.addLog(name, 'success');
+                    else self.addLog(name, 'fail', data.message || '');
+                } catch (e) { self.addLog(name, 'fail'); }
             }
 
             self.signing = false;
@@ -968,47 +943,33 @@ const app = createApp({
             self.signing = true;
             self.addLog('系统', 'info', '开始签到码签到...');
 
-            // 为自己签到
-            try {
-                var selfData = await self.api('POST', '/sign', {
-                    active_id: self.currentTask ? self.currentTask.active_id : '',
-                    course_id: self.currentTask ? self.currentCourseId : '',
-                    class_id: self.currentTask ? self.currentClassId : '',
-                    sign_type: 'code',
-                    sign_code: code,
-                });
-                if (selfData.ok) {
-                    self.addLog(self.user.nickname || '自己', 'success');
-                } else {
-                    self.addLog(self.user.nickname || '自己', 'fail', selfData.message || '');
-                }
-            } catch (e) {
-                self.addLog('自己', 'fail');
+            if (self.selectedFriends.length === 0) {
+                self.toast('请勾选签到对象');
+                self.signing = false;
+                return;
             }
 
-            // 为好友代签
-            if (self.selectedFriends.length > 0) {
-                for (var i = 0; i < self.selectedFriends.length; i++) {
-                    var fid = self.selectedFriends[i];
-                    var friend = self.friends.find(function(f) { return f.id === fid; });
-                    var name = friend ? friend.nickname : ('好友#' + fid);
-                    try {
-                        var data = await self.api('POST', '/sign', {
-                            active_id: self.currentTask ? self.currentTask.active_id : '',
-                            course_id: self.currentTask ? self.currentCourseId : '',
-                            class_id: self.currentTask ? self.currentClassId : '',
-                            sign_type: 'code',
-                            sign_code: code,
-                            friend_id: fid,
-                        });
-                        if (data.ok) {
-                            self.addLog(name, 'success');
-                        } else {
-                            self.addLog(name, 'fail', data.message || '');
-                        }
-                    } catch (e) {
-                        self.addLog(name, 'fail');
+            for (var i = 0; i < self.selectedFriends.length; i++) {
+                var fid = self.selectedFriends[i];
+                var isSelf = (fid === 0);
+                var friend = isSelf ? null : self.friends.find(function(f) { return f.id === fid; });
+                var name = isSelf ? (self.user.nickname || '自己') : (friend ? friend.nickname : ('好友#' + fid));
+                try {
+                    var data = await self.api('POST', '/sign', {
+                        active_id: self.currentTask ? self.currentTask.active_id : '',
+                        course_id: self.currentTask ? self.currentCourseId : '',
+                        class_id: self.currentTask ? self.currentClassId : '',
+                        sign_type: 'code',
+                        sign_code: code,
+                        friend_id: isSelf ? 0 : fid,
+                    });
+                    if (data.ok) {
+                        self.addLog(name, 'success');
+                    } else {
+                        self.addLog(name, 'fail', data.message || '');
                     }
+                } catch (e) {
+                    self.addLog(name, 'fail');
                 }
             }
 
@@ -1254,28 +1215,23 @@ const app = createApp({
                 use_trilateration: self.useTrilateration ? '1' : '0',
             };
 
-            // 为自己签到
-            try {
-                var selfParams = Object.assign({}, signParams);
-                var selfData = await self.api('POST', '/sign', selfParams);
-                var selfOk = selfData.ok;
-                var selfErr = selfOk ? '' : (selfData.message || '');
-                self.addLog(self.user.nickname || '自己', selfOk ? 'success' : 'fail', selfErr);
-            } catch (e) { self.addLog('自己', 'fail'); }
+            if (self.selectedFriends.length === 0) {
+                self.toast('请勾选签到对象');
+                self.signing = false;
+                return;
+            }
 
-            // 好友代签
-            if (self.selectedFriends.length > 0) {
-                for (var i = 0; i < self.selectedFriends.length; i++) {
-                    var fid = self.selectedFriends[i];
-                    var friend = self.friends.find(function(f) { return f.id === fid; });
-                    var name = friend ? friend.nickname : ('好友#' + fid);
-                    try {
-                        var fParams = Object.assign({}, signParams, { friend_id: fid });
-                        var data = await self.api('POST', '/sign', fParams);
-                        var fOk = data.ok;
-                        self.addLog(name, fOk ? 'success' : 'fail', fOk ? '' : (data.message || ''));
-                    } catch (e) { self.addLog(name, 'fail'); }
-                }
+            for (var i = 0; i < self.selectedFriends.length; i++) {
+                var fid = self.selectedFriends[i];
+                var isSelf = (fid === 0);
+                var friend = isSelf ? null : self.friends.find(function(f) { return f.id === fid; });
+                var name = isSelf ? (self.user.nickname || '自己') : (friend ? friend.nickname : ('好友#' + fid));
+                try {
+                    var fParams = Object.assign({}, signParams, { friend_id: isSelf ? 0 : fid });
+                    var data = await self.api('POST', '/sign', fParams);
+                    var fOk = data.ok;
+                    self.addLog(name, fOk ? 'success' : 'fail', fOk ? '' : (data.message || ''));
+                } catch (e) { self.addLog(name, 'fail'); }
             }
 
             self.signing = false;
@@ -1300,11 +1256,18 @@ const app = createApp({
             if (!self.locationLng) return self.toast('请选择位置');
             if (!self.jwt) return self.toast('请先登录');
             self.scanLogs = [];
+            if (self.selectedFriends.length === 0) {
+                self.toast('请勾选签到对象');
+                return;
+            }
             self.signing = true;
             self.addLog('系统', 'info', '指定位置扫码签到 ' + self.locationName);
 
+            var signSelf = self.selectedFriends.includes(0);
+            var friendIds = self.selectedFriends.filter(function(id) { return id !== 0; });
+
             try {
-                var selfData = await self.apiAuth('POST', '/checkin/qrcode', {
+                var data = await self.apiAuth('POST', '/checkin/qrcode', {
                     qr_data: self.scannedQrData,
                     active_id: self.currentTask ? self.currentTask.active_id : '',
                     course_id: self.currentTask ? self.currentCourseId : '',
@@ -1314,38 +1277,25 @@ const app = createApp({
                     latitude: self.locationLat,
                     location_name: self.locationName,
                     use_trilateration: self.useTrilateration ? '1' : '0',
-                    proxy_friend_ids: [],
+                    sign_self: signSelf,
+                    proxy_friend_ids: friendIds,
                 });
-                var selfResult = (selfData.results && selfData.results.self) || 'failed';
-                var selfErrMsg = selfResult === 'failed' ? (selfData.results && selfData.results.self_msg) || '' : '';
-                self.addLog(self.user.nickname || '自己', selfResult, selfErrMsg);
-            } catch (e) {
-                self.addLog('自己', 'fail');
-            }
 
-            if (self.selectedFriends.length > 0) {
-                try {
-                    var data = await self.apiAuth('POST', '/checkin/qrcode', {
-                        qr_data: self.scannedQrData,
-                        active_id: self.currentTask ? self.currentTask.active_id : '',
-                        course_id: self.currentTask ? self.currentCourseId : '',
-                        class_id: self.currentTask ? self.currentClassId : '',
-                        sign_type: 'qrcode_location',
-                        longitude: self.locationLng,
-                        latitude: self.locationLat,
-                        location_name: self.locationName,
-                        proxy_friend_ids: self.selectedFriends,
-                    });
-                    var proxyResults = (data.results && data.results.proxy) || [];
-                    proxyResults.forEach(function(p) {
-                        var name = p.nickname || p.supernova_account || ('好友#' + p.friend_id);
-                        var pResult = p.result === 'success' ? 'success' : 'fail';
-                        var pMsg = pResult === 'fail' ? (p.message || '') : '';
-                        self.addLog(name, pResult, pMsg);
-                    });
-                } catch (e) {
-                    self.addLog('代签', 'fail', '请求失败');
+                var selfResult = (data.results && data.results.self) || 'failed';
+                if (selfResult !== 'skipped') {
+                    var selfErrMsg = selfResult === 'failed' ? (data.results && data.results.self_msg) || '' : '';
+                    self.addLog(self.user.nickname || '自己', selfResult, selfErrMsg);
                 }
+
+                var proxyResults = (data.results && data.results.proxy) || [];
+                proxyResults.forEach(function(p) {
+                    var name = p.nickname || p.supernova_account || ('好友#' + p.friend_id);
+                    var pResult = p.result === 'success' ? 'success' : 'fail';
+                    var pMsg = pResult === 'fail' ? (p.message || '') : '';
+                    self.addLog(name, pResult, pMsg);
+                });
+            } catch (e) {
+                self.addLog('代签', 'fail', '请求失败');
             }
 
             self.signing = false;
