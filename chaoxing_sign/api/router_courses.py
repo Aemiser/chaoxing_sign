@@ -40,6 +40,8 @@ def _query_course_active(cookies: dict, course) -> tuple:
     )
     data = resp.json()
     active = []
+    # 清空指定课程的缓存
+    delete_cached_tasks(course.course_id, course.class_id)
     for item in data.get("activeList", []):
         try:
             if int(item.get("activeType", 0)) != 2:
@@ -72,8 +74,7 @@ def _query_course_active(cookies: dict, course) -> tuple:
             except Exception:
                 pass
 
-        # 清空指定课程的缓存
-        delete_cached_tasks(course.course_id, course.class_id)
+
 
         # 写入 Redis 缓存
         cache_sign_task(item, course.course_id, course.class_id)

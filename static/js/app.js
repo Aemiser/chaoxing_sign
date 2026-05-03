@@ -110,7 +110,7 @@ const app = createApp({
         currentPage(val) {
             if (this.cameraActive) this.stopScanCamera();
             if (val !== 'scan' && this._scanMap) { this._scanMap.destroy(); this._scanMap = null; this._locationMarker = null; }
-            if (val === 'home') { var self = this; self.loadFriends().then(function() { self.loadActiveCourses(); }); }
+            if (val === 'home') { this._enterHome(); }
             if (val === 'courses') this.loadCourses();
             if (val === 'scan') { this.loadFriends(); if (this.signMode === 'gesture') { var s = this; nextTick(function() { s.gestureInitCanvas(); }); } }
             if (val === 'friends') this.loadFriends();
@@ -354,17 +354,27 @@ const app = createApp({
             self.currentPage = 'login';
         },
 
-        // 有签到活动的课程
-        loadActiveCourses: async function() {
+        // 进入首页 — 防重复请求
+        _enterHome: function() {
+            // 已有请求在进行中则跳过
+            if (this._fetchingActive) return;
             var self = this;
-            if (self._loadingActive) return;
-            self._loadingActive = true;
+            self.loadFriends().then(function() {
+                self.loadActiveCourses();
+            });
+        },
+
+        // 有签到活动的课程（首页入口 + 手动刷新按钮）
+        loadActiveCourses: async function(force) {
+            var self = this;
+            if (!force && self._fetchingActive) return;
+            self._fetchingActive = true;
             self.loadingActive = true;
             try {
                 var data = await self.api('GET', '/active-courses');
                 self.activeCourses = data.courses || [];
             } catch (e) { self.activeCourses = []; }
-            finally { self.loadingActive = false; self._loadingActive = false; }
+            finally { self.loadingActive = false; self._fetchingActive = false; }
         },
 
         loadCourses: async function() {
