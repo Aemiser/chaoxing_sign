@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import json
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import urllib3
 import requests
@@ -245,6 +246,7 @@ class ChaoxingClient:
         from .redis_client import cache_sign_task, update_cached_task_location
 
         tasks: list[SignTask] = []
+        to_check_signed: list[SignTask] = []
 
         for item in data.get("activeList", []):
             try:
@@ -280,11 +282,45 @@ class ChaoxingClient:
             # 缓存活跃任务到 Redis（TTL = 活动结束时间），已结束的不缓存
             cache_sign_task(item, course.course_id, course.class_id)
 
-            # 仅在需要时检测已签到状态（避免不必要请求）
             if check_signed and task.status == "active" and task.active_id:
-                task.signed = self.check_signed(task.active_id, task.course_id, task.class_id)
+                to_check_signed.append(task)
 
             tasks.append(task)
+
+        # 并行检测已签到状态
+        if to_check_signed:
+            cookies = self.session.cookies.get_dict()
+            headers = dict(self.session.headers)
+
+            def _check(task):
+                s = requests.Session()
+                s.headers.update(headers)
+                for k, v in cookies.items():
+                    s.cookies.set(k, v)
+                try:
+                    resp = s.get(
+                        "https://mobilelearn.chaoxing.com/widget/sign/pcStuSignController/preSign",
+                        params={
+                            "activeId": task.active_id,
+                            "classId": task.class_id,
+                            "courseId": task.course_id,
+                            "fid": "0",
+                        },
+                        timeout=10,
+                    )
+                    task.signed = "您已签到" in resp.text or "签到成功" in resp.text
+                except Exception:
+                    pass
+                finally:
+                    s.close()
+
+            with ThreadPoolExecutor(max_workers=5) as pool:
+                futures = {pool.submit(_check, t): t for t in to_check_signed}
+                for fut in as_completed(futures):
+                    try:
+                        fut.result()
+                    except Exception:
+                        pass
 
         return tasks
 
@@ -365,6 +401,83 @@ class ChaoxingClient:
                 detail_url = m.group(1)
                 try:
                     resp = self.session.get(detail_url, timeout=10)
+                    data = safe_json_loads(resp.text)
+                    task.enc = data.get("enc", "") or data.get("encStr", "")
+                except Exception:
+                    pass
+
+        return task
+
+    def get_sign_details_batch(self, tasks: list[SignTask], max_workers: int = 5) -> None:
+        """并行获取多个签到任务的详情（替代串行调用 get_sign_detail）
+
+        每个线程使用独立 requests.Session，共享主 session 的 cookies 和 headers。
+        """
+        cookies = self.session.cookies.get_dict()
+        headers = dict(self.session.headers)
+
+        def _detail(task: SignTask):
+            s = requests.Session()
+            s.headers.update(headers)
+            for k, v in cookies.items():
+                s.cookies.set(k, v)
+            self._get_sign_detail_with_session(task, s)
+            s.close()
+
+        with ThreadPoolExecutor(max_workers=max_workers) as pool:
+            futures = {pool.submit(_detail, t): t for t in tasks}
+            for fut in as_completed(futures):
+                try:
+                    fut.result()
+                except Exception:
+                    pass
+
+    def _get_sign_detail_with_session(self, task: SignTask, s: requests.Session) -> SignTask:
+        """get_sign_detail 的独立 session 版本（供并行调用）"""
+        from bs4 import BeautifulSoup
+        from .utils.json_utils import safe_json_loads
+
+        html = ""
+        if task.raw_url:
+            try:
+                resp = s.get(task.raw_url, timeout=10)
+                html = resp.text
+            except Exception:
+                pass
+
+        if not html:
+            return task
+
+        m = re.search(r'acId\s*=\s*["\'](\d+)["\']', html)
+        if m:
+            task.active_id = m.group(1)
+
+        if not task.active_id and "activePrimaryId=" in task.raw_url:
+            m = re.search(r"activePrimaryId=(\d+)", task.raw_url)
+            if m:
+                task.active_id = m.group(1)
+
+        if task.sign_type in (SignType.QRCODE, SignType.LOCATION):
+            soup = BeautifulSoup(html, "lxml")
+            el = soup.select_one("#ifopenAddress")
+            if el and el.get("value") == "1":
+                if task.sign_type == SignType.QRCODE:
+                    task.sign_type = SignType.QRCODE_LOCATION
+                loc_el = soup.select_one("#locationText")
+                if loc_el and loc_el.get("value"):
+                    task.location_name = loc_el.get("value")
+                    from .redis_client import update_cached_task_location
+                    update_cached_task_location(
+                        task.course_id, task.class_id, task.active_id, task.location_name
+                    )
+                log.info("检测到指定地点签到: %s", task.location_name)
+
+        if task.sign_type == SignType.QRCODE:
+            m = re.search(r'url1\s*=\s*["\']([^"\']+)["\']', html)
+            if m:
+                detail_url = m.group(1)
+                try:
+                    resp = s.get(detail_url, timeout=10)
                     data = safe_json_loads(resp.text)
                     task.enc = data.get("enc", "") or data.get("encStr", "")
                 except Exception:

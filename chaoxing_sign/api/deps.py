@@ -7,7 +7,6 @@ from fastapi import HTTPException, Query
 
 from .. import database as db_module
 from ..auth.session import SessionManager
-from ..utils.crypto import decrypt_hybrid
 from ..logging_config import get_logger
 
 log = get_logger(__name__)
@@ -53,6 +52,7 @@ def decrypt_query_payload(encrypted: str | None = Query(None)) -> dict | None:
     if not encrypted:
         return None
     try:
+        from ..utils.crypto import decrypt_hybrid
         private_key = _get_private_key()
         return decrypt_hybrid(encrypted, private_key)
     except Exception as e:
@@ -68,6 +68,7 @@ def decrypt_body_payload(body: dict) -> dict | None:
     if not encrypted:
         return None
     try:
+        from ..utils.crypto import decrypt_hybrid
         private_key = _get_private_key()
         return decrypt_hybrid(encrypted, private_key)
     except Exception as e:

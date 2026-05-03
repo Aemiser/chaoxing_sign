@@ -22,11 +22,6 @@ import json
 import os
 from pathlib import Path
 
-from Crypto.Cipher import AES, PKCS1_OAEP
-from Crypto.Hash import SHA256
-from Crypto.PublicKey import RSA
-from Crypto.Random import get_random_bytes
-
 # RSA 密钥大小
 RSA_KEY_SIZE = 2048
 
@@ -36,8 +31,18 @@ AES_NONCE_SIZE = 12  # 96 bits for GCM
 AES_TAG_SIZE = 16  # 128 bits GCM auth tag
 
 
+def _get_crypto():
+    """懒加载 pycryptodome，避免未安装时模块导入失败"""
+    from Crypto.Cipher import AES, PKCS1_OAEP
+    from Crypto.Hash import SHA256
+    from Crypto.PublicKey import RSA
+    from Crypto.Random import get_random_bytes
+    return AES, PKCS1_OAEP, SHA256, RSA, get_random_bytes
+
+
 def generate_rsa_keypair() -> tuple[str, str]:
     """生成 RSA-2048 密钥对，返回 (private_pem, public_pem)"""
+    _, _, _, RSA, _ = _get_crypto()
     key = RSA.generate(RSA_KEY_SIZE)
     private_pem = key.export_key(format="PEM").decode()
     public_pem = key.public_key().export_key(format="PEM").decode()
@@ -59,13 +64,15 @@ def _ensure_keys_exist(
     return private_pem, public_pem
 
 
-def load_private_key(pem: str) -> RSA.RsaKey:
+def load_private_key(pem: str):
     """从 PEM 字符串加载私钥"""
+    _, _, _, RSA, _ = _get_crypto()
     return RSA.import_key(pem)
 
 
-def load_public_key(pem: str) -> RSA.RsaKey:
+def load_public_key(pem: str):
     """从 PEM 字符串加载公钥"""
+    _, _, _, RSA, _ = _get_crypto()
     return RSA.import_key(pem)
 
 
@@ -79,6 +86,8 @@ def encrypt_hybrid(data: dict, public_key_pem: str) -> str:
     Returns:
         Base64 编码的密文 (格式: nonce + encrypted_key + tag + ciphertext)
     """
+    AES, PKCS1_OAEP, SHA256, _, get_random_bytes = _get_crypto()
+
     public_key = load_public_key(public_key_pem)
     rsa_cipher = PKCS1_OAEP.new(public_key, hashAlgo=SHA256)
 
@@ -109,6 +118,8 @@ def decrypt_hybrid(encrypted: str, private_key_pem: str) -> dict:
     Returns:
         解密后的字典
     """
+    AES, PKCS1_OAEP, SHA256, _, _ = _get_crypto()
+
     private_key = load_private_key(private_key_pem)
     rsa_cipher = PKCS1_OAEP.new(private_key, hashAlgo=SHA256)
 

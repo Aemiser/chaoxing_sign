@@ -234,17 +234,10 @@ async def api_tasks(course_id: str, class_id: str, token: str = Query(...),
     course = Course(course_id=course_id, class_id=class_id, name="")
     tasks = c.get_sign_tasks(course, check_signed=True)
 
-    for t in tasks:
-        if t.sign_type == SignType.QRCODE:
-            try:
-                c.get_sign_detail(t)
-            except Exception:
-                pass
-        if t.sign_type == SignType.LOCATION:
-            try:
-                c.get_sign_detail(t)
-            except Exception:
-                pass
+    # 并行获取签到详情（QRCODE / LOCATION），大幅减少等待时间
+    detail_tasks = [t for t in tasks if t.sign_type in (SignType.QRCODE, SignType.LOCATION)]
+    if detail_tasks:
+        c.get_sign_details_batch(detail_tasks)
 
     return {"ok": True, "tasks": [_task_to_dict(t, _display_type) for t in tasks]}
 
