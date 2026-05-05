@@ -563,6 +563,7 @@ class ChaoxingClient:
             validate = solve_captcha(self.session, referer=STUSIGN_URL)
             if validate:
                 params["validate"] = validate
+            log.info("validate: %s",validate)
         except Exception as e:
             log.debug("滑块验证码处理失败（可能不需要验证码）: %s", e)
 
