@@ -184,17 +184,14 @@
     <section v-if="currentPage === 'scan'" class="page active">
         <nav class="navbar">
             <span class="nav-btn" @click="exitScanPage"><span class="material-symbols-outlined">chevron_left</span></span>
-            <span class="navbar-title">{{ signMode === 'normal' ? '普通签到' : signMode === 'photo' ? '拍照签到' : signMode === 'code' ? '签到码签到' : signMode === 'gesture' ? '手势签到' : signMode === 'location' ? '位置签到' : signMode === 'qrcode_location' ? '扫二维码签到' : '扫二维码签到' }}</span>
+            <span class="navbar-title">{{ signMode === 'normal' ? '普通签到' : signMode === 'photo' ? '拍照签到' : signMode === 'code' ? '签到码签到' : signMode === 'gesture' ? '手势签到' : signMode === 'location' ? '位置签到' : '扫二维码签到' }}</span>
             <span class="nav-btn invisible"><span class="material-symbols-outlined">more_horiz</span></span>
         </nav>
         <div class="page-content scan-page-content">
 
-            <!-- 操作标题栏：左标题 + 右按钮（二维码模式） -->
-            <div v-if="signMode === 'qrcode' || signMode === 'qrcode_location'" class="scan-action-bar">
+            <!-- 操作标题栏：二维码模式 -->
+            <div v-if="signMode === 'qrcode'" class="scan-action-bar">
                 <span class="scan-action-title">帮助同学</span>
-                <button v-if="!cameraActive" class="btn btn-filled btn-scan" @click="startScanCamera">
-                    <span class="material-symbols-outlined" style="font-size:18px;vertical-align:-4px;margin-right:4px">qr_code_scanner</span>扫描二维码</button>
-                <button v-else class="btn btn-outlined btn-scan-stop" @click="stopScanCamera">关闭摄像头</button>
             </div>
 
             <!-- 签到码输入栏（签到码模式） -->
@@ -210,8 +207,8 @@
                 </div>
             </div>
 
-            <!-- 摄像头预览（仅扫码时显示） -->
-            <div v-if="cameraActive && (signMode === 'qrcode' || signMode === 'qrcode_location')" class="scan-camera-bar">
+            <!-- 摄像头预览（二维码模式时显示） -->
+            <div v-if="cameraActive && signMode === 'qrcode'" class="scan-camera-bar">
                 <video id="qr-video" class="scan-video" autoplay playsinline></video>
                 <canvas id="qr-canvas" style="display:none"></canvas>
             </div>
@@ -225,53 +222,84 @@
                 </button>
             </div>
 
-            <!-- 指定位置二维码签到区：扫码 + 地图选点 -->
-            <div v-if="signMode === 'qrcode_location'" class="qrcode-location-area">
-                <div v-if="scannedQrData" class="qr-scanned-status">
+            <!-- 二维码签到统一区：扫码 + 可选地图选点 -->
+            <div v-if="signMode === 'qrcode'" class="qrcode-area">
+                <!-- 扫码状态提示 -->
+                <div v-if="signing" class="qr-scanned-status">
                     <span class="material-symbols-outlined" style="font-size:18px;color:var(--m3-primary);vertical-align:-4px;margin-right:6px">check_circle</span>
-                    <span>二维码已识别</span>
+                    <span>正在签到中...</span>
+                </div>
+                <div v-else-if="scannedQrData && qrMapEnabled && !locationLng" class="qr-scanned-status">
+                    <span class="material-symbols-outlined" style="font-size:18px;color:var(--m3-primary);vertical-align:-4px;margin-right:6px">check_circle</span>
+                    <span>二维码已识别，请在地图上选择位置</span>
                     <button class="btn btn-outlined" @click="resetQrcodeLocationScan" style="margin-left:12px;padding:4px 12px;font-size:12px">重新扫描</button>
                 </div>
-                <div v-else class="qr-scanned-status qr-scanned-wait">
+                <div v-else-if="scannedQrData" class="qr-scanned-status">
+                    <span class="material-symbols-outlined" style="font-size:18px;color:var(--m3-primary);vertical-align:-4px;margin-right:6px">check_circle</span>
+                    <span>二维码已识别</span>
+                </div>
+                <div v-else-if="cameraActive" class="qr-scanned-status qr-scanned-wait">
                     <span class="material-symbols-outlined" style="font-size:18px;vertical-align:-4px;margin-right:6px;color:var(--m3-outline)">qr_code</span>
-                    <span>请先扫描二维码</span>
+                    <span>请将二维码对准摄像头</span>
                 </div>
-                <div v-if="taskLocationName" class="location-info-bar"
-                     style="background:var(--m3-primary-container);border-radius:12px;padding:10px 14px;margin:0 4px 8px">
-                    <span class="material-symbols-outlined" style="font-size:18px;color:var(--m3-primary)">pin_drop</span>
-                    <span style="font-size:var(--m3-body-sm);color:var(--m3-on-primary-container)">{{ taskLocationName }}</span>
-                </div>
-                <div id="scan-location-map" class="scan-location-map"></div>
-                <div class="location-info-bar" v-if="locationName">
-                    <span class="material-symbols-outlined" style="font-size:16px;vertical-align:-3px;margin-right:4px;color:var(--m3-primary)">location_on</span>
-                    <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ locationName }}</span>
-                    <span style="color:var(--m3-on-surface-variant);font-size:11px;flex-shrink:0">{{ locationLng }}, {{ locationLat }}</span>
-                    <button class="btn-locate" @click="doGeolocation" :disabled="locating" title="定位当前位置">
-                        <span v-if="locating" class="locate-spinner"></span>
-                        <span v-else class="material-symbols-outlined" style="font-size:18px">my_location</span>
-                    </button>
-                </div>
-                <div class="location-info-bar" v-else style="color:var(--m3-outline)">
-                    点击地图选择位置
-                    <span style="flex:1"></span>
-                    <button class="btn-locate" @click="doGeolocation" :disabled="locating" title="定位当前位置">
-                        <span v-if="locating" class="locate-spinner"></span>
-                        <span v-else class="material-symbols-outlined" style="font-size:18px">my_location</span>
-                    </button>
-                </div>
-                <div v-if="showTrilateration" class="location-trilateration-toggle">
+
+                <!-- 打开地图组件开关 -->
+                <div class="map-toggle-bar" style="display:flex;align-items:center;gap:10px;padding:10px 16px;margin:4px 4px 0">
                     <label class="toggle-switch">
-                        <input type="checkbox" v-model="useTrilateration">
+                        <input type="checkbox" v-model="qrMapEnabled" @change="onQrMapToggle">
                         <span class="toggle-slider"></span>
                     </label>
-                    <span class="toggle-label">三角定位求解</span>
-                    <span class="toggle-help" @click="toast('开启后自动使用五探测点+Gauss-Newton算法推算出教师指定签到位置坐标进行签到。\n\n关闭则直接使用地图上选中的坐标提交，适用于普通位置签到或教师未设置指定地点的情况。')" title="点击查看说明">
+                    <span class="toggle-label">打开地图组件</span>
+                    <span class="toggle-help" @click="toast('开启后可在扫码签到时间时传入经纬度信息。\n\n用于教师要求指定位置的二维码签到场景。')" title="点击查看说明">
                         <span class="material-symbols-outlined" style="font-size:16px">help</span>
                     </span>
                 </div>
-                <button class="btn btn-filled" @click="doQrcodeLocationSign" :disabled="signing || !scannedQrData || !locationLng"
+
+                <!-- 地图选点区（仅开关打开时显示） -->
+                <div v-if="qrMapEnabled">
+                    <div v-if="taskLocationName" class="location-info-bar"
+                         style="background:var(--m3-primary-container);border-radius:12px;padding:10px 14px;margin:0 4px 8px">
+                        <span class="material-symbols-outlined" style="font-size:18px;color:var(--m3-primary)">pin_drop</span>
+                        <span style="font-size:var(--m3-body-sm);color:var(--m3-on-primary-container)">{{ taskLocationName }}</span>
+                    </div>
+                    <div id="scan-location-map" class="scan-location-map"></div>
+                    <div class="location-info-bar" v-if="locationName">
+                        <span class="material-symbols-outlined" style="font-size:16px;vertical-align:-3px;margin-right:4px;color:var(--m3-primary)">location_on</span>
+                        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ locationName }}</span>
+                        <span style="color:var(--m3-on-surface-variant);font-size:11px;flex-shrink:0">{{ locationLng }}, {{ locationLat }}</span>
+                        <button class="btn-locate" @click="doGeolocation" :disabled="locating" title="定位当前位置">
+                            <span v-if="locating" class="locate-spinner"></span>
+                            <span v-else class="material-symbols-outlined" style="font-size:18px">my_location</span>
+                        </button>
+                    </div>
+                    <div class="location-info-bar" v-else style="color:var(--m3-outline)">
+                        点击地图选择位置
+                        <span style="flex:1"></span>
+                        <button class="btn-locate" @click="doGeolocation" :disabled="locating" title="定位当前位置">
+                            <span v-if="locating" class="locate-spinner"></span>
+                            <span v-else class="material-symbols-outlined" style="font-size:18px">my_location</span>
+                        </button>
+                    </div>
+                    <div v-if="showTrilateration" class="location-trilateration-toggle">
+                        <label class="toggle-switch">
+                            <input type="checkbox" v-model="useTrilateration">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="toggle-label">三角定位求解</span>
+                        <span class="toggle-help" @click="toast('开启后自动使用五探测点+Gauss-Newton算法推算出教师指定签到位置坐标进行签到。\n\n关闭则直接使用地图上选中的坐标提交，适用于普通位置签到或教师未设置指定地点的情况。')" title="点击查看说明">
+                            <span class="material-symbols-outlined" style="font-size:16px">help</span>
+                        </span>
+                    </div>
+                </div>
+
+                <!-- 扫描二维码按钮（替代原确认签到按钮位置） -->
+                <button v-if="!cameraActive" class="btn btn-filled btn-scan" @click="startScanCamera"
                         style="margin:12px 16px;width:calc(100% - 32px)">
-                    {{ signing ? '签到中...' : '确认签到' }}
+                    <span class="material-symbols-outlined" style="font-size:18px;vertical-align:-4px;margin-right:4px">qr_code_scanner</span>扫描二维码
+                </button>
+                <button v-else class="btn btn-outlined btn-scan-stop" @click="stopScanCamera"
+                        style="margin:12px 16px;width:calc(100% - 32px)">
+                    关闭摄像头
                 </button>
             </div>
 

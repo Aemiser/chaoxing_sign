@@ -87,6 +87,7 @@ const app = createApp({
             locating: false,
             useTrilateration: true,
             showTrilateration: true,  // 三角定位开关，由后端 sign__show_trilateration 配置控制
+            qrMapEnabled: false,       // 二维码签到：是否打开地图组件（默认关闭）
             taskLocationName: '',     // 教师设置的指定签到地点名称
         };
     },
@@ -472,7 +473,7 @@ const app = createApp({
                 this.signMode = task.sign_type === 'code' ? 'code'
                     : task.sign_type === 'gesture' ? 'gesture'
                     : task.sign_type === 'location' || task.sign_type === 'location_named' ? 'location'
-                    : 'qrcode_location';
+                    : 'qrcode';
                 this.selectedFriends = [];
                 this.scanLogs = [];
                 this.signCodeInput = '';
@@ -485,13 +486,13 @@ const app = createApp({
                 this.scannedQrData = '';
                 this.scannedEnc = '';
                 this.useTrilateration = this.showTrilateration;
+                this.qrMapEnabled = false;
                 this.taskLocationName = task.location_name || '';
                 this.currentTask = task;
                 this.currentPage = 'scan';
                 var self = this;
                 if (this.signMode === 'gesture') { nextTick(function() { self.gestureInitCanvas(); }); }
                 if (this.signMode === 'location') { nextTick(function() { self.initScanMap(); }); }
-                if (this.signMode === 'qrcode_location') { nextTick(function() { self.initScanMap(); }); }
             } else {
                 this.doDirectSign(task);
             }
@@ -511,6 +512,7 @@ const app = createApp({
             this.scannedQrData = '';
             this.scannedEnc = '';
             this.useTrilateration = this.showTrilateration;
+            this.qrMapEnabled = false;
             this.taskLocationName = task.location_name || '';
             this.currentTask = task;
             if (task.sign_type === 'normal') this.signMode = 'normal';
@@ -518,11 +520,10 @@ const app = createApp({
             else if (task.sign_type === 'code') this.signMode = 'code';
             else if (task.sign_type === 'gesture') this.signMode = 'gesture';
             else if (task.sign_type === 'location' || task.sign_type === 'location_named') this.signMode = 'location';
-            else this.signMode = 'qrcode_location';
+            else this.signMode = 'qrcode';
             this.currentPage = 'scan';
             var self = this;
             if (this.signMode === 'location') { nextTick(function() { self.initScanMap(); }); }
-            if (this.signMode === 'qrcode_location') { nextTick(function() { self.initScanMap(); }); }
         },
 
         doDirectSign: async function(task) {
@@ -629,6 +630,8 @@ const app = createApp({
             this.scanLogs = [];
             this.scannedQrData = '';
             this.scannedEnc = '';
+            this.qrMapEnabled = false;
+            if (this._scanMap) { this._scanMap.destroy(); this._scanMap = null; this._locationMarker = null; }
             this.currentPage = this.currentTask ? 'tasks' : 'home';
         },
 
@@ -720,11 +723,11 @@ const app = createApp({
                     var code = jsQR(imageData.data, imageData.width, imageData.height);
                     if (code && code.data) {
                         self.stopScanCamera();
-                        if (self.signMode === 'qrcode_location') {
-                            self.scannedQrData = code.data;
-                            var m = code.data.match(/enc=([a-zA-Z0-9_\-]+)/);
-                            self.scannedEnc = m ? m[1] : code.data;
-                            self.addLog('扫描', 'info', '二维码已识别，请选择位置');
+                        self.scannedQrData = code.data;
+                        var m = code.data.match(/enc=([a-zA-Z0-9_\-]+)/);
+                        self.scannedEnc = m ? m[1] : code.data;
+                        if (self.qrMapEnabled) {
+                            self.addLog('扫描', 'info', '二维码已识别，请选择位置后签到');
                         } else {
                             self.addLog('扫描', 'info', '识别成功，开始签到...');
                             self.doScanSign(code.data);
@@ -751,20 +754,39 @@ const app = createApp({
                 self.toast('请勾选签到对象');
                 return;
             }
+
+            // 如果打开地图组件，需要先选择位置
+            if (self.qrMapEnabled && !self.locationLng) {
+                return self.toast('请在地图上选择签到位置');
+            }
+
             self.signing = true;
 
             var signSelf = self.selectedFriends.includes(0);
             var friendIds = self.selectedFriends.filter(function(id) { return id !== 0; });
 
+            var reqBody = {
+                qr_data: qrData,
+                active_id: self.currentTask ? self.currentTask.active_id : '',
+                course_id: self.currentTask ? self.currentCourseId : '',
+                class_id: self.currentTask ? self.currentClassId : '',
+                sign_self: signSelf,
+                proxy_friend_ids: friendIds,
+            };
+
+            if (self.qrMapEnabled) {
+                reqBody.sign_type = 'qrcode_location';
+                reqBody.longitude = self.locationLng;
+                reqBody.latitude = self.locationLat;
+                reqBody.location_name = self.locationName;
+                reqBody.use_trilateration = self.useTrilateration ? '1' : '0';
+                self.addLog('系统', 'info', '位置扫码签到 ' + self.locationName);
+            } else {
+                reqBody.sign_type = 'qrcode';
+            }
+
             try {
-                var data = await self.apiAuth('POST', '/checkin/qrcode', {
-                    qr_data: qrData,
-                    active_id: self.currentTask ? self.currentTask.active_id : '',
-                    course_id: self.currentTask ? self.currentCourseId : '',
-                    class_id: self.currentTask ? self.currentClassId : '',
-                    sign_self: signSelf,
-                    proxy_friend_ids: friendIds,
-                });
+                var data = await self.apiAuth('POST', '/checkin/qrcode', reqBody);
 
                 var selfResult = (data.results && data.results.self) || 'failed';
                 if (selfResult !== 'skipped') {
@@ -1080,6 +1102,7 @@ const app = createApp({
                         if (status === 'complete' && result.regeocode) {
                             self.locationName = result.regeocode.formattedAddress || '';
                         }
+                        self.tryAutoScanSign();
                     });
                 });
 
@@ -1157,6 +1180,7 @@ const app = createApp({
                             if (self._locationMarker) self._locationMarker.setPosition([lng, lat]);
                         }
                         onDone('已定位到当前位置');
+                        self.tryAutoScanSign();
                     } else {
                         onDone('定位失败，请检查设备定位是否开启');
                     }
@@ -1193,6 +1217,7 @@ const app = createApp({
                         });
                     }
                     onDone('已定位到当前位置');
+                    self.tryAutoScanSign();
                 },
                 function(err) {
                     clearTimeout(t);
@@ -1253,6 +1278,23 @@ const app = createApp({
         },
 
         // 指定位置二维码签到
+        // 二维码签到：当地图选点完成且已扫码时自动提交
+        tryAutoScanSign: function() {
+            var self = this;
+            if (self.qrMapEnabled && self.scannedQrData && self.locationLng && !self.signing) {
+                self.doScanSign(self.scannedQrData);
+            }
+        },
+
+        onQrMapToggle: function() {
+            var self = this;
+            if (self.qrMapEnabled) {
+                nextTick(function() { self.initScanMap(); });
+            } else {
+                if (self._scanMap) { self._scanMap.destroy(); self._scanMap = null; self._locationMarker = null; }
+            }
+        },
+
         resetQrcodeLocationScan: function() {
             this.scannedQrData = '';
             this.scannedEnc = '';
