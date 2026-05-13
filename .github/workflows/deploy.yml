@@ -99,5 +99,17 @@ jobs:
               exit 1
             fi
             echo "--- health check ---"
-            curl -sf http://127.0.0.1:8000/health
+            for i in $(seq 1 15); do
+              if curl -sf http://127.0.0.1:8000/health; then
+                echo "Health check OK"
+                break
+              fi
+              if [ "$i" -eq 15 ]; then
+                echo "HEALTH CHECK FAILED after 15 attempts"
+                journalctl -u chaoxing-sign --no-pager -n 30
+                exit 1
+              fi
+              echo "Attempt $i/15 failed, retrying in 2s..."
+              sleep 2
+            done
           REMOTE_EOF
