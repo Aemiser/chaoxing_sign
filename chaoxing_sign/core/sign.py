@@ -27,7 +27,7 @@ def _apply_location_offset(lat: float, lon: float) -> tuple[float, float]:
     offset_e = cfg.get("location_offset", {}).get("east", 0.0)
     offset_n = cfg.get("location_offset", {}).get("north", 0.0)
 
-    log.info(f"坐标偏移修正：东 {offset_e} 米，北 {offset_n} 米")
+    # log.info(f"坐标偏移修正：东 {offset_e} 米，北 {offset_n} 米")
     if offset_e == 0.0 and offset_n == 0.0:
         return lat, lon
 

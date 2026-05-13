@@ -79,7 +79,7 @@ async def api_add_friend(
             raise HTTPException(400, detail="对方已是您的好友")
 
         db.add(Friendship(user_id=user_id, friend_id=target.id))
-        db.add(Friendship(user_id=target.id, friend_id=user_id))
+        # db.add(Friendship(user_id=target.id, friend_id=user_id))
         db.commit()
 
         return {

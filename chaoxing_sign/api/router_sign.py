@@ -1,5 +1,6 @@
 """签道路由 — /api/sign, /api/checkin/qrcode"""
 from __future__ import annotations
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from fastapi import APIRouter, HTTPException, Query, Depends
 from sqlalchemy.orm import Session
@@ -199,58 +200,73 @@ async def api_checkin_qrcode(
 
     if proxy_friend_ids:
         log.info("开始代签: user_id=%d friend_ids=%s", user_id, proxy_friend_ids)
-        db: Session = db_module.get_db()
-        try:
-            # 获取操作人账户信息
-            action_user = db.query(User).filter(User.id == user_id).first()
-            actionuser_name = action_user.supernova_account if action_user else str(user_id)
 
-            for fid in proxy_friend_ids:
+        # 获取操作人账户信息
+        actionuser_name = str(user_id)
+        db_init: Session = db_module.get_db()
+        try:
+            action_user = db_init.query(User).filter(User.id == user_id).first()
+            if action_user:
+                actionuser_name = action_user.supernova_account or str(user_id)
+        finally:
+            db_init.close()
+
+        def _proxy_sign_one(fid: int) -> dict:
+            """单个好友代签（在线程中执行，使用独立 DB session）"""
+            thread_db: Session = db_module.get_db()
+            try:
                 friendship = (
-                    db.query(Friendship)
+                    thread_db.query(Friendship)
                     .filter(Friendship.user_id == user_id, Friendship.friend_id == fid)
                     .first()
                 )
                 if not friendship:
                     log.warning("无权代签: user_id=%d friend_id=%d", user_id, fid)
-                    results["proxy"].append({"friend_id": fid, "result": "无权代签", "message": "无权代签"})
-                    continue
+                    return {"friend_id": fid, "result": "无权代签", "message": "无权代签"}
 
-                friend = db.query(User).filter(User.id == fid).first()
+                friend = thread_db.query(User).filter(User.id == fid).first()
                 if not friend:
                     log.warning("好友不存在: friend_id=%d", fid)
-                    results["proxy"].append({"friend_id": fid, "result": "好友不存在", "message": "好友不存在"})
-                    continue
+                    return {"friend_id": fid, "result": "好友不存在", "message": "好友不存在"}
 
-                friend_client = _get_proxy_client(db, fid)
+                friend_client = _get_proxy_client(thread_db, fid)
                 if not friend_client:
                     log.warning("好友无可用会话: friend_id=%d account=%s", fid, friend.supernova_account)
-                    results["proxy"].append({
+                    return {
                         "friend_id": fid, "supernova_account": friend.supernova_account,
                         "nickname": friend.nickname, "result": "好友未登录过，无可用会话",
                         "message": "好友未登录过，无可用会话",
-                    })
-                    continue
+                    }
 
                 proxy_ok, proxy_msg = friend_client.sign(task, **sign_kwargs)
                 proxy_result = "success" if proxy_ok else "failed"
                 log.info("代签结果: actionuser=%s friend_id=%d target=%s result=%s msg=%s",
                          actionuser_name, fid, friend.supernova_account, proxy_result, proxy_msg)
 
-                db.add(ProxyRecord(
+                thread_db.add(ProxyRecord(
                     user_id=user_id, target_uid=friend.supernova_account,
                     active_id=task.active_id, enc=enc, result=proxy_result,
                     actionuser=actionuser_name,
                     friendids=",".join(str(x) for x in proxy_friend_ids),
                 ))
-                db.commit()
+                thread_db.commit()
 
-                results["proxy"].append({
+                return {
                     "friend_id": fid, "supernova_account": friend.supernova_account,
                     "nickname": friend.nickname, "result": proxy_result,
                     "message": proxy_msg,
-                })
-        finally:
-            db.close()
+                }
+            finally:
+                thread_db.close()
+
+        with ThreadPoolExecutor(max_workers=10) as pool:
+            futures = {pool.submit(_proxy_sign_one, fid): fid for fid in proxy_friend_ids}
+            for future in as_completed(futures):
+                try:
+                    results["proxy"].append(future.result())
+                except Exception as e:
+                    fid = futures[future]
+                    log.error("代签异常: friend_id=%d error=%s", fid, e)
+                    results["proxy"].append({"friend_id": fid, "result": "代签异常", "message": str(e)})
 
     return {"ok": True, "results": results}
